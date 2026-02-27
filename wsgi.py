@@ -30,7 +30,3 @@ if __name__ == '__main__':
 #                             \('-') 
 #   ,,                           |_|\
 #                               | |
-# youtube Raihan.08 gamer
-# Telegram raihanpaid
-#DONT CHANGE CREDIT 
-#IF YOU CHANGE MY CREDIT, I'LL FUCK YOUR MOM
