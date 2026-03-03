@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>M222HP Premium • Like API</title>
+  <style>
+    :root {
+      --bg: #050608;
+      --line: #222a36;
+      --red: #ff1717;
+      --red-soft: rgba(255, 20, 20, 0.28);
+      --blue: #2f8fff;
+      --text: #f2f6ff;
+      --muted: #8391ad;
+      --ok: #44f49f;
+      --warn: #ff7373;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top, #10162a 0%, #06080f 45%, var(--bg) 100%);
+      padding: 24px 14px 42px;
+    }
+
+    .music-toggle {
+      position: fixed;
+      top: 16px;
+      right: 14px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--red);
+      background: #0c111d;
+      color: var(--red);
+      cursor: pointer;
+      font-size: 1rem;
+      box-shadow: 0 0 18px var(--red-soft);
+      z-index: 20;
+    }
+
+    .shell {
+      width: min(700px, 100%);
+      margin: 70px auto 0;
+    }
+
+    .brand { text-align: center; margin-bottom: 16px; }
+
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+    }
+
+    .brand h1 span { color: var(--red); }
+
+    .brand p {
+      margin: 8px 0 0;
+      color: #637596;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-size: 0.72rem;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: #070b14;
+      border: 1px solid #1b2230;
+      border-radius: 18px;
+      padding: 4px;
+      margin-bottom: 16px;
+    }
+
+    .tab {
+      border: 0;
+      cursor: pointer;
+      border-radius: 13px;
+      padding: 13px 10px;
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      font-size: 0.78rem;
+      color: #7485a8;
+      background: transparent;
+    }
+
+    .tab.active {
+      background: linear-gradient(90deg, #ff2020, #ca0000);
+      color: #fff;
+      box-shadow: 0 0 16px var(--red-soft);
+    }
+
+    .panel {
+      background: linear-gradient(180deg, #0b101c, #090d15);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 0 28px rgba(255, 0, 0, 0.12);
+      margin-bottom: 14px;
+    }
+
+    .hidden { display: none; }
+
+    .title {
+      margin: 0 0 12px;
+      text-transform: uppercase;
+      font-size: 1rem;
+      letter-spacing: 0.5px;
+      color: var(--red);
+      font-weight: 900;
+    }
+
+    .fields { display: grid; gap: 10px; }
+
+    input, select {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid #2a3344;
+      background: #0a101b;
+      color: var(--text);
+      padding: 13px 12px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .btn {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 13px;
+      margin-top: 6px;
+      text-transform: uppercase;
+      font-weight: 900;
+      letter-spacing: 0.45px;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(90deg, #ff1f1f, #c40000);
+    }
+
+    .status { min-height: 20px; margin-top: 10px; color: var(--muted); }
+    .status.ok { color: var(--ok); font-weight: 700; text-shadow: 0 0 10px rgba(68, 244, 159, 0.25); }
+    .status.err { color: var(--warn); }
+
+    .result-card {
+      background: linear-gradient(135deg, #111b30, #0d1322 55%, #121d35);
+      border: 1px solid #2c3850;
+      border-radius: 16px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+
+    .profile {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .avatar {
+      width: 74px;
+      height: 74px;
+      border-radius: 14px;
+      border: 2px solid #3e8bff;
+      object-fit: cover;
+      box-shadow: 0 0 16px rgba(70, 133, 255, 0.45);
+      background: #121c32;
+    }
+
+    .nick { margin: 0; font-size: 1.25rem; text-transform: uppercase; }
+    .uid { margin: 4px 0 0; color: #65a3ff; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .stat {
+      background: rgba(8, 14, 25, 0.75);
+      border: 1px solid #243046;
+      border-radius: 12px;
+      text-align: center;
+      padding: 10px 8px;
+    }
+
+    .stat .label { font-size: .7rem; text-transform: uppercase; color: #7f8eab; margin-bottom: 4px; }
+    .stat .val { font-weight: 900; font-size: 1.05rem; }
+    .stat.before .val { color: #74a8ff; }
+    .stat.plus .val { color: #ffbb42; }
+    .stat.after .val { color: #ff59ae; }
+
+    .token-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .token-box {
+      border-radius: 12px;
+      border: 1px solid #2b3345;
+      background: #0d1421;
+      padding: 11px 10px;
+    }
+
+    .token-box .srv { color: #8da0c7; font-size: .78rem; text-transform: uppercase; }
+    .token-box .cnt { margin-top: 5px; font-weight: 900; }
+
+    .social-profile {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-top: 10px;
+      margin-bottom: 12px;
+      background: linear-gradient(180deg, #0e1524, #0b111e);
+      border: 1px solid #2e3a51;
+      border-radius: 14px;
+      padding: 10px;
+    }
+
+    .social-avatar-wrap {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      border: 2px solid var(--red);
+      box-shadow: 0 0 16px var(--red-soft);
+      padding: 3px;
+      background: #080d16;
+    }
+
+    .social-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .social-name {
+      margin: 0;
+      font-size: 1.15rem;
+      line-height: 1.1;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #f5f8ff;
+    }
+
+    .social-username {
+      margin: 4px 0 0;
+      color: #7f9ac8;
+      font-size: .86rem;
+    }
+
+    .socials {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .social {
+      text-decoration: none;
+      text-align: center;
+      border-radius: 12px;
+      padding: 12px;
+      font-weight: 800;
+      color: #fff;
+      text-transform: uppercase;
+      font-size: .84rem;
+      border: 1px solid #2d374c;
+      background: #101727;
+    }
+
+    .social.telegram { background: linear-gradient(90deg, #1ea0ff, #0c6ed8); }
+    .social.tiktok { background: linear-gradient(90deg, #0b0b0d, #232323); }
+
+    pre {
+      margin: 12px 0 0;
+      background: #09101b;
+      border: 1px solid #293347;
+      border-radius: 10px;
+      color: #d0dbf5;
+      padding: 10px;
+      font-size: 0.82rem;
+      max-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    @media (max-width: 560px) {
+      .shell { margin-top: 64px; }
+      .panel { padding: 14px; border-radius: 16px; }
+      .tabs { border-radius: 16px; }
+      .tab { font-size: .72rem; padding: 11px 8px; }
+      .stats-grid, .token-grid, .socials { grid-template-columns: 1fr; }
+      .profile { grid-template-columns: 1fr; text-align: center; }
+      .social-profile { grid-template-columns: 1fr; text-align: center; }
+      .social-avatar-wrap { margin: 0 auto; }
+      .avatar { margin: 0 auto; }
+      .music-toggle { width: 44px; height: 44px; }
+    }
+  </style>
+</head>
+<body>
+  <button id="musicBtn" class="music-toggle" aria-label="вкл/выкл музыку">▶</button>
+
+  <main class="shell">
+    <header class="brand">
+      <h1><span>M222HP</span> Premium</h1>
+      <p>System Online • API by M222HP</p>
+    </header>
+
+    <section class="tabs" aria-label="tabs">
+      <button id="likeTab" class="tab active" type="button">LIKE API</button>
+      <button id="tokenTab" class="tab" type="button">TOKEN INFO</button>
+    </section>
+
+    <section id="likePanel" class="panel">
+      <h2 class="title">🚀 LIKE API</h2>
+      <form id="likeForm" class="fields">
+        <input id="uid" type="number" placeholder="YOUR UID" required>
+        <select id="server_name" required>
+          <option value="CIS">CIS</option>
+          <option value="BD">BD</option>
+          <option value="BR">BR</option>
+          <option value="US">US</option>
+          <option value="SAC">SAC</option>
+          <option value="NA">NA</option>
+        </select>
+        <button class="btn" type="submit">Отправить лайки</button>
+      </form>
+
+      <div id="status" class="status"></div>
+      <div id="resultCard" class="result-card hidden">
+        <div class="profile">
+          <img id="avatar" class="avatar" alt="Игровой аватар" src="">
+          <div>
+            <h3 id="nickname" class="nick">N/A</h3>
+            <p id="uidText" class="uid">UID: -</p>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat before">
+            <div class="label">Лайки до</div>
+            <div id="likesBefore" class="val">0</div>
+          </div>
+          <div class="stat plus">
+            <div class="label">Пришло</div>
+            <div id="likesGiven" class="val">+0</div>
+          </div>
+          <div class="stat after">
+            <div class="label">Лайки после</div>
+            <div id="likesAfter" class="val">0</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section id="tokenPanel" class="panel hidden">
+      <h2 class="title">🧩 TOKEN INFO</h2>
+      <p style="margin:0;color:var(--muted)">Здесь отображается информация по токенам для серверов.</p>
+      <div id="tokenGrid" class="token-grid"></div>
+      <pre id="tokenRaw" class="hidden"></pre>
+    </section>
+
+    <section class="panel">
+      <h2 class="title">🌐 Social</h2>
+
+      <!--
+        Поставь своё фото в: /workspace/like/static/profile.jpg
+        Если файл называется иначе — поменяй filename ниже.
+      -->
+      <div class="social-profile">
+        <div class="social-avatar-wrap">
+          <img id="socialAvatar" class="social-avatar" src="{{ url_for('static', filename='profile.jpg') }}" alt="Profile photo">
+        </div>
+        <div>
+          <!-- TODO: укажи свой ник -->
+          <p class="social-name">NUR SAILAUOV</p>
+          <!-- TODO: укажи свой username -->
+          <p class="social-username">@NUR_SAILAUDY</p>
+        </div>
+      </div>
+
+      <!-- TODO: Вставь свою ссылку Telegram вместо # -->
+      <!-- TODO: Вставь свою ссылку TikTok вместо # -->
+      <div class="socials">
+        <a class="social telegram" href="#" target="_blank" rel="noreferrer noopener">Telegram</a>
+        <a class="social tiktok" href="#" target="_blank" rel="noreferrer noopener">TikTok</a>
+      </div>
+    </section>
+  </main>
+
+  <!--
+    Как добавить свою музыку:
+    1) Положи файл music.mp3 в папку static/ (путь: /workspace/like/static/music.mp3)
+    2) Если имя другое, поменяй src ниже.
+  -->
+  <audio id="bgMusic" loop preload="none">
+    <source src="{{ url_for('static', filename='music.mp3') }}" type="audio/mpeg">
+  </audio>
+
+  <script>
+    const likeTab = document.getElementById('likeTab');
+    const tokenTab = document.getElementById('tokenTab');
+    const likePanel = document.getElementById('likePanel');
+    const tokenPanel = document.getElementById('tokenPanel');
+
+    const form = document.getElementById('likeForm');
+    const statusEl = document.getElementById('status');
+
+    const resultCard = document.getElementById('resultCard');
+    const avatar = document.getElementById('avatar');
+    const nickname = document.getElementById('nickname');
+    const uidText = document.getElementById('uidText');
+    const likesBefore = document.getElementById('likesBefore');
+    const likesGiven = document.getElementById('likesGiven');
+    const likesAfter = document.getElementById('likesAfter');
+
+    const tokenGrid = document.getElementById('tokenGrid');
+    const tokenRaw = document.getElementById('tokenRaw');
+
+    const musicBtn = document.getElementById('musicBtn');
+    const bgMusic = document.getElementById('bgMusic');
+    let isPlaying = false;
+
+    function setStatus(message, type = '') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`.trim();
+    }
+
+    function setActiveTab(mode) {
+      const isLike = mode === 'like';
+      likeTab.classList.toggle('active', isLike);
+      tokenTab.classList.toggle('active', !isLike);
+      likePanel.classList.toggle('hidden', !isLike);
+      tokenPanel.classList.toggle('hidden', isLike);
+
+      if (!isLike && tokenGrid.children.length === 0) {
+        loadTokenInfo();
+      }
+    }
+
+    likeTab.addEventListener('click', () => setActiveTab('like'));
+    tokenTab.addEventListener('click', () => setActiveTab('token'));
+
+    function formatNum(value) {
+      return Number(value || 0).toLocaleString('ru-RU');
+    }
+
+    function renderLikeResult(data, fallbackUid) {
+      const uidValue = data.UID || fallbackUid || '-';
+      const nick = data.PlayerNickname && data.PlayerNickname !== 'N/A' ? data.PlayerNickname : 'UNKNOWN PLAYER';
+      const before = Number(data.LikesbeforeCommand || 0);
+      const given = Number(data.LikesGivenByAPI || 0);
+      const after = Number(data.LikesafterCommand || 0);
+
+      nickname.textContent = nick;
+      uidText.textContent = `UID: ${uidValue}`;
+      likesBefore.textContent = formatNum(before);
+      likesGiven.textContent = `${given >= 0 ? '+' : ''}${formatNum(given)}`;
+      likesAfter.textContent = formatNum(after);
+
+      const avatarSeed = encodeURIComponent(`${uidValue}-${nick}`);
+      avatar.src = `https://api.dicebear.com/8.x/adventurer/svg?seed=${avatarSeed}`;
+
+      resultCard.classList.remove('hidden');
+    }
+
+    async function loadTokenInfo() {
+      tokenGrid.innerHTML = '<div style="color:var(--muted)">Загрузка...</div>';
+      tokenRaw.classList.add('hidden');
+
+      try {
+        const response = await fetch('/token_info');
+        const data = await response.json();
+
+        if (!response.ok) {
+          tokenGrid.innerHTML = '<div style="color:var(--warn)">Ошибка загрузки token_info</div>';
+          tokenRaw.textContent = JSON.stringify(data, null, 2);
+          tokenRaw.classList.remove('hidden');
+          return;
+        }
+
+        tokenGrid.innerHTML = '';
+        Object.entries(data).forEach(([server, counts]) => {
+          const box = document.createElement('div');
+          box.className = 'token-box';
+          box.innerHTML = `
+            <div class="srv">${server}</div>
+            <div class="cnt">Обычные: ${formatNum(counts.regular_tokens)}</div>
+            <div class="cnt">Visit: ${formatNum(counts.visit_tokens)}</div>
+          `;
+          tokenGrid.appendChild(box);
+        });
+
+        tokenRaw.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        tokenGrid.innerHTML = '<div style="color:var(--warn)">Не удалось получить token_info</div>';
+        tokenRaw.textContent = String(error);
+        tokenRaw.classList.remove('hidden');
+      }
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const uid = document.getElementById('uid').value.trim();
+      const server = document.getElementById('server_name').value;
+
+      if (!uid) {
+        setStatus('Введите UID', 'err');
+        return;
+      }
+
+      setStatus('Отправка лайков...', '');
+      resultCard.classList.add('hidden');
+
+      try {
+        // rotation batch убран: всегда random=true
+        const params = new URLSearchParams({ uid, server_name: server, random: 'true' });
+        const response = await fetch(`/like?${params.toString()}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          setStatus(`Ошибка: HTTP ${response.status}`, 'err');
+          return;
+        }
+
+        renderLikeResult(data, uid);
+        setStatus('✅ Лайки отправлены', 'ok');
+      } catch (error) {
+        setStatus('Не удалось отправить запрос', 'err');
+      }
+    });
+
+
+    const socialAvatar = document.getElementById('socialAvatar');
+    if (socialAvatar) {
+      socialAvatar.addEventListener('error', () => {
+        socialAvatar.src = 'https://api.dicebear.com/8.x/notionists/svg?seed=white-cat';
+      }, { once: true });
+    }
+
+    musicBtn.addEventListener('click', async () => {
+      try {
+        if (isPlaying) {
+          bgMusic.pause();
+          isPlaying = false;
+          musicBtn.textContent = '▶';
+          return;
+        }
+
+        await bgMusic.play();
+        isPlaying = true;
+        musicBtn.textContent = '❚❚';
+      } catch (error) {
+        setStatus('Не удалось воспроизвести music.mp3', 'err');
+      }
+    });
+  </script>
+</body>
+</html>
