@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import asyncio
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -225,10 +225,16 @@ def decode_protobuf_profile_info(binary_data):
 
 app = Flask(__name__)
 
+
+@app.route('/', methods=['GET'])
+def web_interface():
+    return render_template('index.html')
+
 @app.route('/like', methods=['GET'])
 def handle_requests():
     uid_param = request.args.get("uid")
     server_name_param = request.args.get("server_name", "").upper()
+    avatar_id_param = (request.args.get("avatar_id") or request.args.get("Avatar_id") or "").strip()
     use_random = request.args.get("random", "false").lower() == "true"
 
     if not uid_param or not server_name_param:
@@ -326,7 +332,10 @@ def handle_requests():
         "PlayerNickname": player_nickname_from_profile,
         "UID": actual_player_uid_from_profile,
         "status": request_status,
-        "Note": f"Used visit token for profile check and {'random' if use_random else 'rotating'} batch of {len(tokens_for_like_sending)} tokens for like sending."
+        "AvatarID": avatar_id_param,
+        "Avatar_id": avatar_id_param,
+        "AvatarIdFromVisit": False,
+        "Note": f"Visit protobuf does not include avatar id; using client-supplied avatar_id/Avatar_id='{avatar_id_param}' when provided. Used {'random' if use_random else 'rotating'} batch of {len(tokens_for_like_sending)} tokens for like sending."
     }
     return jsonify(response_data)
 
