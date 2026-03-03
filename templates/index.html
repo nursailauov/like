@@ -216,6 +216,52 @@
     .token-box .srv { color: #8da0c7; font-size: .78rem; text-transform: uppercase; }
     .token-box .cnt { margin-top: 5px; font-weight: 900; }
 
+    .social-profile {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-top: 10px;
+      margin-bottom: 12px;
+      background: linear-gradient(180deg, #0e1524, #0b111e);
+      border: 1px solid #2e3a51;
+      border-radius: 14px;
+      padding: 10px;
+    }
+
+    .social-avatar-wrap {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      border: 2px solid var(--red);
+      box-shadow: 0 0 16px var(--red-soft);
+      padding: 3px;
+      background: #080d16;
+    }
+
+    .social-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .social-name {
+      margin: 0;
+      font-size: 1.15rem;
+      line-height: 1.1;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #f5f8ff;
+    }
+
+    .social-username {
+      margin: 4px 0 0;
+      color: #7f9ac8;
+      font-size: .86rem;
+    }
+
     .socials {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -260,6 +306,8 @@
       .tab { font-size: .72rem; padding: 11px 8px; }
       .stats-grid, .token-grid, .socials { grid-template-columns: 1fr; }
       .profile { grid-template-columns: 1fr; text-align: center; }
+      .social-profile { grid-template-columns: 1fr; text-align: center; }
+      .social-avatar-wrap { margin: 0 auto; }
       .avatar { margin: 0 auto; }
       .music-toggle { width: 44px; height: 44px; }
     }
@@ -332,6 +380,23 @@
 
     <section class="panel">
       <h2 class="title">🌐 Social</h2>
+
+      <!--
+        Поставь своё фото в: /workspace/like/static/profile.jpg
+        Если файл называется иначе — поменяй filename ниже.
+      -->
+      <div class="social-profile">
+        <div class="social-avatar-wrap">
+          <img id="socialAvatar" class="social-avatar" src="{{ url_for('static', filename='profile.jpg') }}" alt="Profile photo">
+        </div>
+        <div>
+          <!-- TODO: укажи свой ник -->
+          <p class="social-name">NUR SAILAUOV</p>
+          <!-- TODO: укажи свой username -->
+          <p class="social-username">@NUR_SAILAUDY</p>
+        </div>
+      </div>
+
       <!-- TODO: Вставь свою ссылку Telegram вместо # -->
       <!-- TODO: Вставь свою ссылку TikTok вместо # -->
       <div class="socials">
@@ -490,6 +555,14 @@
         likeRaw.classList.remove('hidden');
       }
     });
+
+
+    const socialAvatar = document.getElementById('socialAvatar');
+    if (socialAvatar) {
+      socialAvatar.addEventListener('error', () => {
+        socialAvatar.src = 'https://api.dicebear.com/8.x/notionists/svg?seed=white-cat';
+      }, { once: true });
+    }
 
     musicBtn.addEventListener('click', async () => {
       try {
