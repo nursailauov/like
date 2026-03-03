@@ -147,7 +147,7 @@
     }
 
     .status { min-height: 20px; margin-top: 10px; color: var(--muted); }
-    .status.ok { color: var(--ok); }
+    .status.ok { color: var(--ok); font-weight: 700; text-shadow: 0 0 10px rgba(68, 244, 159, 0.25); }
     .status.err { color: var(--warn); }
 
     .result-card {
@@ -368,7 +368,6 @@
         </div>
       </div>
 
-      <pre id="likeRaw" class="hidden"></pre>
     </section>
 
     <section id="tokenPanel" class="panel hidden">
@@ -431,7 +430,6 @@
     const likesBefore = document.getElementById('likesBefore');
     const likesGiven = document.getElementById('likesGiven');
     const likesAfter = document.getElementById('likesAfter');
-    const likeRaw = document.getElementById('likeRaw');
 
     const tokenGrid = document.getElementById('tokenGrid');
     const tokenRaw = document.getElementById('tokenRaw');
@@ -481,8 +479,6 @@
       avatar.src = `https://api.dicebear.com/8.x/adventurer/svg?seed=${avatarSeed}`;
 
       resultCard.classList.remove('hidden');
-      likeRaw.textContent = JSON.stringify(data, null, 2);
-      likeRaw.classList.remove('hidden');
     }
 
     async function loadTokenInfo() {
@@ -532,7 +528,6 @@
 
       setStatus('Отправка лайков...', '');
       resultCard.classList.add('hidden');
-      likeRaw.classList.add('hidden');
 
       try {
         // rotation batch убран: всегда random=true
@@ -542,17 +537,13 @@
 
         if (!response.ok) {
           setStatus(`Ошибка: HTTP ${response.status}`, 'err');
-          likeRaw.textContent = JSON.stringify(data, null, 2);
-          likeRaw.classList.remove('hidden');
           return;
         }
 
         renderLikeResult(data, uid);
-        setStatus(`Готово: отправка завершена (HTTP ${response.status})`, 'ok');
+        setStatus('✅ Лайки отправлены', 'ok');
       } catch (error) {
         setStatus('Не удалось отправить запрос', 'err');
-        likeRaw.textContent = String(error);
-        likeRaw.classList.remove('hidden');
       }
     });
 
