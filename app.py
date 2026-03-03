@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import asyncio
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -223,7 +223,40 @@ def decode_protobuf_profile_info(binary_data):
         print(f"Error decoding Protobuf profile data: {e}")
         return None
 
+
+
+def extract_avatar_id_from_visit(profile_info):
+    """Best-effort avatar id extraction from decoded visit profile."""
+    if not profile_info or not hasattr(profile_info, 'AccountInfo'):
+        return ""
+
+    account = profile_info.AccountInfo
+    candidate_fields = (
+        'AvatarID', 'AvatarId', 'avatar_id',
+        'HeadPic', 'HeadPicId', 'Icon', 'IconId',
+        'EquippedAvatarId', 'ProfileIcon'
+    )
+
+    for field_name in candidate_fields:
+        if hasattr(account, field_name):
+            value = getattr(account, field_name)
+            if value not in (None, "", 0, "0"):
+                return str(value)
+
+    if isinstance(account, dict):
+        for field_name in candidate_fields:
+            value = account.get(field_name)
+            if value not in (None, "", 0, "0"):
+                return str(value)
+
+    return ""
+
 app = Flask(__name__)
+
+
+@app.route('/', methods=['GET'])
+def web_interface():
+    return render_template('index.html')
 
 @app.route('/like', methods=['GET'])
 def handle_requests():
@@ -294,6 +327,7 @@ def handle_requests():
     after_like_count = before_like_count
     actual_player_uid_from_profile = int(uid_param)
     player_nickname_from_profile = "N/A"
+    avatar_id_from_visit = ""
 
     # Fix: .get() hata kar direct attributes use kiye hain
     if after_info and hasattr(after_info, 'AccountInfo'):
@@ -306,11 +340,14 @@ def handle_requests():
                 player_nickname_from_profile = str(after_info.AccountInfo.PlayerNickname)
             else:
                 player_nickname_from_profile = "N/A"
+
+            avatar_id_from_visit = extract_avatar_id_from_visit(after_info)
         except AttributeError:
             # Agar kabhi dictionary nikla toh ye fallback hai
             after_like_count = int(after_info.AccountInfo.get('Likes', 0))
             actual_player_uid_from_profile = int(after_info.AccountInfo.get('UID', 0))
             player_nickname_from_profile = str(after_info.AccountInfo.get('PlayerNickname', 'N/A'))
+            avatar_id_from_visit = extract_avatar_id_from_visit(after_info)
     else:
         print(f"Could not reliably fetch 'after' profile info for UID {uid_param} on {server_name_param}.")
 
@@ -326,7 +363,10 @@ def handle_requests():
         "PlayerNickname": player_nickname_from_profile,
         "UID": actual_player_uid_from_profile,
         "status": request_status,
-        "Note": f"Used visit token for profile check and {'random' if use_random else 'rotating'} batch of {len(tokens_for_like_sending)} tokens for like sending."
+        "AvatarID": avatar_id_from_visit,
+        "Avatar_id": avatar_id_from_visit,
+        "AvatarIdFromVisit": bool(avatar_id_from_visit),
+        "Note": f"AvatarID extracted from visit profile when available. Used {'random' if use_random else 'rotating'} batch of {len(tokens_for_like_sending)} tokens for like sending."
     }
     return jsonify(response_data)
 
