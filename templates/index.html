@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>M222HP Premium • Like API</title>
+  <style>
+    :root {
+      --bg: #050608;
+      --panel: #090b0f;
+      --panel-border: #20242d;
+      --red: #ff1212;
+      --red-soft: rgba(255, 18, 18, 0.22);
+      --text: #f5f7ff;
+      --muted: #95a0b8;
+      --blue: #1796d8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: radial-gradient(circle at top, #0d1016 0%, var(--bg) 45%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 14px 36px;
+    }
+
+    .music-toggle {
+      position: fixed;
+      top: 18px;
+      right: 16px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--red);
+      background: #0c0d11;
+      color: var(--red);
+      cursor: pointer;
+      font-size: 1rem;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 0 18px var(--red-soft);
+      z-index: 99;
+    }
+
+    .shell {
+      width: min(640px, 100%);
+      margin: 72px auto 0;
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 900;
+      font-size: clamp(2rem, 4.5vw, 3rem);
+    }
+
+    .brand h1 span { color: var(--red); }
+
+    .brand p {
+      margin: 6px 0 0;
+      color: #5e6b87;
+      font-size: .75rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .tabs {
+      background: #06080d;
+      border: 1px solid #1b2028;
+      border-radius: 20px;
+      padding: 4px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-bottom: 20px;
+    }
+
+    .tab {
+      border: 0;
+      border-radius: 14px;
+      padding: 13px 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: .78rem;
+      letter-spacing: .4px;
+      cursor: pointer;
+      background: transparent;
+      color: #6f7e99;
+    }
+
+    .tab.active {
+      background: linear-gradient(90deg, #ff1515, #c10000);
+      color: #fff;
+      box-shadow: 0 0 18px var(--red-soft);
+    }
+
+    .card {
+      background: linear-gradient(180deg, #070a0f, #040507);
+      border: 1px solid var(--panel-border);
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: 0 0 35px rgba(255, 10, 10, .12);
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      color: var(--red);
+      font-weight: 800;
+      margin: 0 0 14px;
+      text-transform: uppercase;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      letter-spacing: .4px;
+    }
+
+    .fields {
+      display: grid;
+      gap: 10px;
+    }
+
+    input, select {
+      width: 100%;
+      background: #0b0d12;
+      color: #dce4f8;
+      border: 1px solid #222a36;
+      border-radius: 12px;
+      padding: 14px 12px;
+      font-size: .95rem;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: #3c475e;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, .04);
+    }
+
+    .btn {
+      margin-top: 8px;
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #ff1717, #cf0000);
+      color: #fff;
+      cursor: pointer;
+      letter-spacing: .5px;
+    }
+
+    .btn-secondary {
+      margin-top: 10px;
+      background: linear-gradient(90deg, #1696da, #0b6fa8);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      text-align: center;
+    }
+
+    .stats .value {
+      color: var(--red);
+      font-size: 1.2rem;
+      font-weight: 900;
+      margin-bottom: 3px;
+    }
+
+    .stats .label {
+      color: #64728f;
+      text-transform: uppercase;
+      font-size: .7rem;
+      letter-spacing: .7px;
+    }
+
+    .status {
+      margin: 10px 0 0;
+      min-height: 20px;
+      font-size: .9rem;
+    }
+
+    .status.ok { color: #4dfd93; }
+    .status.err { color: #ff6f6f; }
+
+    pre {
+      margin: 10px 0 0;
+      background: #090c12;
+      border: 1px solid #232b37;
+      border-radius: 12px;
+      padding: 12px;
+      color: #d4dcf1;
+      min-height: 150px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: .85rem;
+      overflow: auto;
+      max-height: 320px;
+    }
+
+    .footer-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .footer-buttons a {
+      text-decoration: none;
+      text-align: center;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: .8rem;
+      color: white;
+    }
+
+    .telegram { background: linear-gradient(90deg, #1c9ad8, #1170aa); }
+    .contact { background: linear-gradient(90deg, #ff1a1a, #bf0000); }
+
+    @media (max-width: 540px) {
+      .shell { margin-top: 64px; }
+      .card { padding: 16px; border-radius: 16px; }
+      .tabs { border-radius: 16px; }
+      .tab { padding: 11px 8px; font-size: .72rem; }
+      .music-toggle { width: 44px; height: 44px; }
+      .footer-buttons, .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <button id="musicBtn" class="music-toggle" aria-label="Включить или выключить музыку">▶</button>
+
+  <main class="shell">
+    <header class="brand">
+      <h1><span>M222HP</span> Premium</h1>
+      <p>System Online • Like API Interface</p>
+    </header>
+
+    <section class="tabs" aria-label="Режимы">
+      <button class="tab active" type="button">Add Friend</button>
+      <button class="tab" type="button" id="tokenInfoTab">Token Info</button>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">👥 Fast Like Sender</h2>
+
+      <form id="likeForm" class="fields">
+        <input id="uid" type="number" placeholder="YOUR UID" required />
+        <select id="server_name" required>
+          <option value="CIS">CIS</option>
+          <option value="BD">BD</option>
+          <option value="BR">BR</option>
+          <option value="US">US</option>
+          <option value="SAC">SAC</option>
+          <option value="NA">NA</option>
+        </select>
+        <select id="mode">
+          <option value="false">Rotating batch</option>
+          <option value="true">Random batch</option>
+        </select>
+        <button class="btn" type="submit">Send Request Now</button>
+      </form>
+
+      <button id="tokenInfoBtn" class="btn btn-secondary" type="button">Показать Token Info</button>
+      <div id="status" class="status"></div>
+      <pre id="output">Результат появится здесь...</pre>
+    </section>
+
+    <section class="card stats">
+      <div>
+        <div class="value" id="successRate">99.9%</div>
+        <div class="label">Success</div>
+      </div>
+      <div>
+        <div class="value" id="onlineNow">157</div>
+        <div class="label">Online</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">⚡ Support</h2>
+      <div class="footer-buttons">
+        <a class="telegram" href="https://t.me" target="_blank" rel="noreferrer noopener">Telegram</a>
+        <a class="contact" href="mailto:admin@example.com">Admin Contact</a>
+      </div>
+    </section>
+  </main>
+
+  <audio id="bgMusic" loop preload="none">
+    <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=future-bass-logo-109357.mp3" type="audio/mpeg">
+  </audio>
+
+  <script>
+    const form = document.getElementById('likeForm');
+    const statusEl = document.getElementById('status');
+    const output = document.getElementById('output');
+    const tokenInfoBtn = document.getElementById('tokenInfoBtn');
+    const tokenInfoTab = document.getElementById('tokenInfoTab');
+
+    const musicBtn = document.getElementById('musicBtn');
+    const bgMusic = document.getElementById('bgMusic');
+    let isPlaying = false;
+
+    function setStatus(message, ok = false) {
+      statusEl.textContent = message;
+      statusEl.className = ok ? 'status ok' : 'status err';
+    }
+
+    async function showResponse(response) {
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await response.json() : await response.text();
+      output.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      setStatus(response.ok ? `Готово: HTTP ${response.status}` : `Ошибка: HTTP ${response.status}`, response.ok);
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const uid = document.getElementById('uid').value.trim();
+      const server = document.getElementById('server_name').value;
+      const random = document.getElementById('mode').value;
+
+      if (!uid) {
+        setStatus('Введите UID', false);
+        return;
+      }
+
+      statusEl.className = 'status';
+      statusEl.textContent = 'Отправка запроса...';
+      output.textContent = 'Загрузка...';
+
+      try {
+        const params = new URLSearchParams({ uid, server_name: server, random });
+        const response = await fetch(`/like?${params.toString()}`);
+        await showResponse(response);
+      } catch (error) {
+        output.textContent = String(error);
+        setStatus('Не удалось отправить запрос', false);
+      }
+    });
+
+    async function loadTokenInfo() {
+      statusEl.className = 'status';
+      statusEl.textContent = 'Загрузка token_info...';
+      output.textContent = 'Загрузка...';
+      try {
+        const response = await fetch('/token_info');
+        await showResponse(response);
+      } catch (error) {
+        output.textContent = String(error);
+        setStatus('Не удалось получить token_info', false);
+      }
+    }
+
+    tokenInfoBtn.addEventListener('click', loadTokenInfo);
+    tokenInfoTab.addEventListener('click', loadTokenInfo);
+
+    musicBtn.addEventListener('click', async () => {
+      try {
+        if (isPlaying) {
+          bgMusic.pause();
+          isPlaying = false;
+          musicBtn.textContent = '▶';
+          return;
+        }
+
+        await bgMusic.play();
+        isPlaying = true;
+        musicBtn.textContent = '❚❚';
+      } catch (error) {
+        setStatus('Браузер заблокировал автозапуск музыки.', false);
+      }
+    });
+
+    setInterval(() => {
+      const online = 140 + Math.floor(Math.random() * 30);
+      document.getElementById('onlineNow').textContent = String(online);
+    }, 5000);
+  </script>
+</body>
+</html>

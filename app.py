@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 import asyncio
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -224,6 +224,11 @@ def decode_protobuf_profile_info(binary_data):
         return None
 
 app = Flask(__name__)
+
+
+@app.route('/', methods=['GET'])
+def web_interface():
+    return render_template('index.html')
 
 @app.route('/like', methods=['GET'])
 def handle_requests():
