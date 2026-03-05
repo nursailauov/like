@@ -462,12 +462,57 @@
       return Number(value || 0).toLocaleString('ru-RU');
     }
 
-    function renderLikeResult(data, fallbackUid) {
+    function getAvatarFallback(uidValue, nick) {
+      const avatarSeed = encodeURIComponent(`${uidValue}-${nick}`);
+      return `https://api.dicebear.com/8.x/adventurer/svg?seed=${avatarSeed}`;
+    }
+
+    function getItemsAvatarCandidates(avatarId) {
+      const id = encodeURIComponent(String(avatarId));
+      return [
+        `https://items.freefire.dev/${id}.png`,
+        `https://items.freefire.dev/${id}.webp`,
+        `https://items.freefire.dev/images/${id}.png`,
+        `https://items.freefire.dev/images/${id}.webp`,
+        `https://items.freefire.dev/items/${id}.png`,
+        `https://items.freefire.dev/items/${id}.webp`,
+        `https://items.freefire.dev/item/${id}.png`,
+        `https://items.freefire.dev/item/${id}.webp`
+      ];
+    }
+
+    function canLoadImage(url) {
+      return new Promise((resolve) => {
+        const probe = new Image();
+        probe.onload = () => resolve(true);
+        probe.onerror = () => resolve(false);
+        probe.src = url;
+      });
+    }
+
+    async function resolveAvatarImage(avatarId, fallbackUrl) {
+      if (!avatarId) {
+        return fallbackUrl;
+      }
+
+      const candidates = getItemsAvatarCandidates(avatarId);
+      for (const candidate of candidates) {
+        const ok = await canLoadImage(candidate);
+        if (ok) {
+          return candidate;
+        }
+      }
+
+      return fallbackUrl;
+    }
+
+    async function renderLikeResult(data, fallbackUid) {
       const uidValue = data.UID || fallbackUid || '-';
       const nick = data.PlayerNickname && data.PlayerNickname !== 'N/A' ? data.PlayerNickname : 'UNKNOWN PLAYER';
       const before = Number(data.LikesbeforeCommand || 0);
       const given = Number(data.LikesGivenByAPI || 0);
       const after = Number(data.LikesafterCommand || 0);
+      const avatarId = data.AvatarID;
 
       nickname.textContent = nick;
       uidText.textContent = `UID: ${uidValue}`;
@@ -475,8 +520,8 @@
       likesGiven.textContent = `${given >= 0 ? '+' : ''}${formatNum(given)}`;
       likesAfter.textContent = formatNum(after);
 
-      const avatarSeed = encodeURIComponent(`${uidValue}-${nick}`);
-      avatar.src = `https://api.dicebear.com/8.x/adventurer/svg?seed=${avatarSeed}`;
+      const fallbackAvatar = getAvatarFallback(uidValue, nick);
+      avatar.src = await resolveAvatarImage(avatarId, fallbackAvatar);
 
       resultCard.classList.remove('hidden');
     }
@@ -540,7 +585,7 @@
           return;
         }
 
-        renderLikeResult(data, uid);
+        await renderLikeResult(data, uid);
         setStatus('✅ Лайки отправлены', 'ok');
       } catch (error) {
         setStatus('Не удалось отправить запрос', 'err');
