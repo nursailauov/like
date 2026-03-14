@@ -299,6 +299,7 @@ def handle_requests():
     after_like_count = before_like_count
     actual_player_uid_from_profile = int(uid_param)
     player_nickname_from_profile = "N/A"
+    avatar_id_from_profile = None
 
     # Fix: .get() hata kar direct attributes use kiye hain
     if after_info and hasattr(after_info, 'AccountInfo'):
@@ -311,11 +312,23 @@ def handle_requests():
                 player_nickname_from_profile = str(after_info.AccountInfo.PlayerNickname)
             else:
                 player_nickname_from_profile = "N/A"
+
+            if hasattr(after_info.AccountInfo, 'AvatarID'):
+                avatar_id_from_profile = int(after_info.AccountInfo.AvatarID)
+            elif hasattr(after_info.AccountInfo, 'AvatarId'):
+                avatar_id_from_profile = int(after_info.AccountInfo.AvatarId)
+            elif hasattr(after_info.AccountInfo, 'avatar_id'):
+                avatar_id_from_profile = int(after_info.AccountInfo.avatar_id)
         except AttributeError:
             # Agar kabhi dictionary nikla toh ye fallback hai
             after_like_count = int(after_info.AccountInfo.get('Likes', 0))
             actual_player_uid_from_profile = int(after_info.AccountInfo.get('UID', 0))
             player_nickname_from_profile = str(after_info.AccountInfo.get('PlayerNickname', 'N/A'))
+            avatar_id_from_profile = after_info.AccountInfo.get('AvatarID')
+            if avatar_id_from_profile is None:
+                avatar_id_from_profile = after_info.AccountInfo.get('AvatarId')
+            if avatar_id_from_profile is None:
+                avatar_id_from_profile = after_info.AccountInfo.get('avatar_id')
     else:
         print(f"Could not reliably fetch 'after' profile info for UID {uid_param} on {server_name_param}.")
 
@@ -330,6 +343,7 @@ def handle_requests():
         "LikesbeforeCommand": before_like_count,
         "PlayerNickname": player_nickname_from_profile,
         "UID": actual_player_uid_from_profile,
+        "AvatarID": avatar_id_from_profile,
         "status": request_status,
         "Note": f"Used visit token for profile check and {'random' if use_random else 'rotating'} batch of {len(tokens_for_like_sending)} tokens for like sending."
     }
