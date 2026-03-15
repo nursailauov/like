@@ -15,6 +15,7 @@ import random
 
 # Configuration
 TOKEN_BATCH_SIZE = 100
+LIKE_REQUEST_CONCURRENCY = 10
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Global State for Batch Management
@@ -156,6 +157,11 @@ async def send_single_like_request(encrypted_like_payload, token_dict, url):
         print(f"Exception in send_single_like_request for token {token_value[:10]}...: {e}")
         return 997
 
+async def send_like_request_with_limit(semaphore, encrypted_like_payload, token_dict, url):
+    """Run like requests with bounded concurrency to avoid server-side drop/ignore."""
+    async with semaphore:
+        return await send_single_like_request(encrypted_like_payload, token_dict, url)
+
 async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_api_url, token_batch_to_use):
     if not token_batch_to_use:
         print("No tokens provided in the batch to send_likes_with_token_batch.")
@@ -165,8 +171,16 @@ async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_ap
     encrypted_like_payload = encrypt_message(like_protobuf_payload)
     
     tasks = []
+    semaphore = asyncio.Semaphore(LIKE_REQUEST_CONCURRENCY)
     for token_dict_for_request in token_batch_to_use:
-        tasks.append(send_single_like_request(encrypted_like_payload, token_dict_for_request, like_api_url))
+        tasks.append(
+            send_like_request_with_limit(
+                semaphore,
+                encrypted_like_payload,
+                token_dict_for_request,
+                like_api_url
+            )
+        )
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
