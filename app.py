@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 import asyncio
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -13,6 +13,10 @@ import threading
 import urllib3
 import random
 import time
+import os
+from datetime import datetime
+from collections import deque
+from functools import wraps
 
 # Configuration
 TOKEN_BATCH_SIZE = 100
@@ -22,11 +26,19 @@ LIKE_REQUEST_RETRIES = 2
 LIKE_REQUEST_TIMEOUT_SECONDS = 6
 PROFILE_RECHECK_ATTEMPTS = 4
 PROFILE_RECHECK_DELAY_SECONDS = 1.0
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change_me_admin_123")
+ADMIN_LOG_LIMIT = 500
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Global State for Batch Management
 current_batch_indices = {}
 batch_indices_lock = threading.Lock()
+request_logs = deque(maxlen=ADMIN_LOG_LIMIT)
+stats_counters = {
+    "total_requests": 0,
+    "success_requests": 0,
+    "failed_requests": 0
+}
 
 def get_next_batch_tokens(server_name, all_tokens):
     if not all_tokens:
@@ -348,17 +360,108 @@ def decode_protobuf_profile_info(binary_data):
         return None
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "change_me_flask_secret")
+
+def admin_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if not session.get("is_admin"):
+            return redirect(url_for("admin_login"))
+        return view_func(*args, **kwargs)
+    return wrapped
+
+def add_request_log(entry):
+    request_logs.appendleft(entry)
+
+def get_compact_runtime_stats():
+    return {
+        "total_requests": stats_counters["total_requests"],
+        "success_requests": stats_counters["success_requests"],
+        "failed_requests": stats_counters["failed_requests"],
+        "success_rate_percent": round(
+            (stats_counters["success_requests"] / stats_counters["total_requests"] * 100), 2
+        ) if stats_counters["total_requests"] else 0.0,
+        "log_entries": len(request_logs),
+        "config": {
+            "TOKEN_BATCH_SIZE": TOKEN_BATCH_SIZE,
+            "MAX_CONCURRENT_LIKE_REQUESTS": MAX_CONCURRENT_LIKE_REQUESTS,
+            "MIN_CONCURRENT_LIKE_REQUESTS": MIN_CONCURRENT_LIKE_REQUESTS,
+            "LIKE_REQUEST_RETRIES": LIKE_REQUEST_RETRIES,
+            "LIKE_REQUEST_TIMEOUT_SECONDS": LIKE_REQUEST_TIMEOUT_SECONDS,
+            "PROFILE_RECHECK_ATTEMPTS": PROFILE_RECHECK_ATTEMPTS,
+            "PROFILE_RECHECK_DELAY_SECONDS": PROFILE_RECHECK_DELAY_SECONDS
+        }
+    }
 
 
 @app.route('/', methods=['GET'])
 def web_interface():
     return render_template('index.html')
 
+@app.route('/admin', methods=['GET', 'POST'])
+def admin_login():
+    error = ""
+    if request.method == 'POST':
+        password = request.form.get("password", "")
+        if password == ADMIN_PASSWORD:
+            session["is_admin"] = True
+            return redirect(url_for("admin_dashboard"))
+        error = "Неверный админ пароль"
+    return render_template('admin.html', error=error, is_admin=bool(session.get("is_admin")))
+
+@app.route('/admin/dashboard', methods=['GET'])
+@admin_required
+def admin_dashboard():
+    return render_template('admin.html', error="", is_admin=True)
+
+@app.route('/admin/logout', methods=['POST'])
+@admin_required
+def admin_logout():
+    session.clear()
+    return redirect(url_for("admin_login"))
+
+@app.route('/admin/api/stats', methods=['GET'])
+@admin_required
+def admin_api_stats():
+    return jsonify(get_compact_runtime_stats())
+
+@app.route('/admin/api/logs', methods=['GET'])
+@admin_required
+def admin_api_logs():
+    limit = min(int(request.args.get("limit", 100)), ADMIN_LOG_LIMIT)
+    return jsonify({"logs": list(request_logs)[:limit]})
+
+@app.route('/admin/api/config', methods=['POST'])
+@admin_required
+def admin_api_config():
+    global MAX_CONCURRENT_LIKE_REQUESTS, MIN_CONCURRENT_LIKE_REQUESTS, LIKE_REQUEST_RETRIES
+    global LIKE_REQUEST_TIMEOUT_SECONDS, PROFILE_RECHECK_ATTEMPTS, PROFILE_RECHECK_DELAY_SECONDS
+
+    payload = request.get_json(silent=True) or {}
+    MAX_CONCURRENT_LIKE_REQUESTS = int(payload.get("MAX_CONCURRENT_LIKE_REQUESTS", MAX_CONCURRENT_LIKE_REQUESTS))
+    MIN_CONCURRENT_LIKE_REQUESTS = int(payload.get("MIN_CONCURRENT_LIKE_REQUESTS", MIN_CONCURRENT_LIKE_REQUESTS))
+    LIKE_REQUEST_RETRIES = int(payload.get("LIKE_REQUEST_RETRIES", LIKE_REQUEST_RETRIES))
+    LIKE_REQUEST_TIMEOUT_SECONDS = int(payload.get("LIKE_REQUEST_TIMEOUT_SECONDS", LIKE_REQUEST_TIMEOUT_SECONDS))
+    PROFILE_RECHECK_ATTEMPTS = int(payload.get("PROFILE_RECHECK_ATTEMPTS", PROFILE_RECHECK_ATTEMPTS))
+    PROFILE_RECHECK_DELAY_SECONDS = float(payload.get("PROFILE_RECHECK_DELAY_SECONDS", PROFILE_RECHECK_DELAY_SECONDS))
+
+    # Safety guardrails
+    MAX_CONCURRENT_LIKE_REQUESTS = max(1, min(200, MAX_CONCURRENT_LIKE_REQUESTS))
+    MIN_CONCURRENT_LIKE_REQUESTS = max(1, min(MAX_CONCURRENT_LIKE_REQUESTS, MIN_CONCURRENT_LIKE_REQUESTS))
+    LIKE_REQUEST_RETRIES = max(1, min(10, LIKE_REQUEST_RETRIES))
+    LIKE_REQUEST_TIMEOUT_SECONDS = max(2, min(30, LIKE_REQUEST_TIMEOUT_SECONDS))
+    PROFILE_RECHECK_ATTEMPTS = max(1, min(10, PROFILE_RECHECK_ATTEMPTS))
+    PROFILE_RECHECK_DELAY_SECONDS = max(0.2, min(5.0, PROFILE_RECHECK_DELAY_SECONDS))
+
+    return jsonify({"ok": True, "config": get_compact_runtime_stats()["config"]})
+
 @app.route('/like', methods=['GET'])
 def handle_requests():
+    request_started_at = time.time()
     uid_param = request.args.get("uid")
     server_name_param = request.args.get("server_name", "").upper()
     use_random = request.args.get("random", "false").lower() == "true"
+    verify_after_send = request.args.get("verify", "false").lower() == "true"
 
     if not uid_param or not server_name_param:
         return jsonify({"error": "UID and server_name are required"}), 400
@@ -427,13 +530,23 @@ def handle_requests():
             "retried_requests": 0
         }
         
-    # Get likes AFTER using visit token (with re-checks for eventual consistency)
-    after_like_count, after_info = fetch_like_count_with_retry(
-        encrypted_player_uid_for_profile,
-        server_name_param,
-        visit_token,
-        before_like_count
-    )
+    # Fast response by default: single profile check after send.
+    # If verify=true, do multi-check for eventual consistency.
+    if verify_after_send:
+        after_like_count, after_info = fetch_like_count_with_retry(
+            encrypted_player_uid_for_profile,
+            server_name_param,
+            visit_token,
+            before_like_count
+        )
+    else:
+        after_info = make_profile_check_request(encrypted_player_uid_for_profile, server_name_param, visit_token)
+        after_like_count = before_like_count
+        if after_info and hasattr(after_info, 'AccountInfo'):
+            try:
+                after_like_count = int(after_info.AccountInfo.Likes)
+            except Exception:
+                pass
     actual_player_uid_from_profile = int(uid_param)
     player_nickname_from_profile = "N/A"
 
@@ -475,11 +588,33 @@ def handle_requests():
         "LikeRequestRetried": like_send_summary["retried_requests"],
         "LikeRequestConcurrency": like_send_summary.get("used_concurrency", 0),
         "LikeDiagnostic": like_diagnostic,
+        "verifyMode": verify_after_send,
         "Note": (
             f"Used visit token for profile check and {'random' if use_random else 'rotating'} "
             f"batch of {len(tokens_for_like_sending)} tokens for like sending."
         )
     }
+
+    duration_ms = int((time.time() - request_started_at) * 1000)
+    response_data["responseMs"] = duration_ms
+    stats_counters["total_requests"] += 1
+    if likes_increment > 0:
+        stats_counters["success_requests"] += 1
+    else:
+        stats_counters["failed_requests"] += 1
+    add_request_log({
+        "time": datetime.utcnow().isoformat() + "Z",
+        "uid": uid_param,
+        "server": server_name_param,
+        "verify_mode": verify_after_send,
+        "tokens_used": len(tokens_for_like_sending),
+        "likes_increment": likes_increment,
+        "successful_requests": like_send_summary["successful_sends"],
+        "failed_requests": like_send_summary["failed_sends"],
+        "status_counts": like_send_summary["status_counts"],
+        "response_ms": duration_ms
+    })
+
     return jsonify(response_data)
 
 @app.route('/token_info', methods=['GET'])
