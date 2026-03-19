@@ -232,26 +232,26 @@ async def send_single_like_request(encrypted_like_payload, token_dict, url, sess
             async with semaphore:
                 async with session.post(url, data=edata, headers=headers, timeout=aiohttp.ClientTimeout(total=LIKE_REQUEST_TIMEOUT_SECONDS)) as response:
                     if response.status == 200:
-                        return {"status": 200, "retried": retried}
+                        return {"status": 200, "retried": retried, "token_mask": f"...{token_value[-6:]}"}
                     print(
                         f"Like request failed for token {token_value[:10]}... "
                         f"with status: {response.status} (attempt {attempt}/{LIKE_REQUEST_RETRIES})"
                     )
                     if attempt == LIKE_REQUEST_RETRIES:
-                        return {"status": response.status, "retried": retried}
+                        return {"status": response.status, "retried": retried, "token_mask": f"...{token_value[-6:]}"}
         except asyncio.TimeoutError:
             print(f"Like request timed out for token {token_value[:10]}... (attempt {attempt}/{LIKE_REQUEST_RETRIES})")
             if attempt == LIKE_REQUEST_RETRIES:
-                return {"status": 998, "retried": retried}
+                return {"status": 998, "retried": retried, "token_mask": f"...{token_value[-6:]}"}
         except Exception as e:
             print(f"Exception in send_single_like_request for token {token_value[:10]}...: {e} (attempt {attempt}/{LIKE_REQUEST_RETRIES})")
             if attempt == LIKE_REQUEST_RETRIES:
-                return {"status": 997, "retried": retried}
+                return {"status": 997, "retried": retried, "token_mask": f"...{token_value[-6:]}"}
 
         if attempt < LIKE_REQUEST_RETRIES:
             await asyncio.sleep(0.3 * attempt)
 
-    return {"status": 997, "retried": retried}
+    return {"status": 997, "retried": retried, "token_mask": f"...{token_value[-6:]}"}
 
 async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_api_url, token_batch_to_use):
     if not token_batch_to_use:
@@ -283,14 +283,22 @@ async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_ap
     normalized_results = []
     status_counts = {}
     retried_requests = 0
+    token_results = []
     for result in results:
         if isinstance(result, dict):
             status = int(result.get("status", 997))
             retried_requests += int(result.get("retried", 0))
+            token_results.append({
+                "token_mask": result.get("token_mask", "unknown"),
+                "status": status,
+                "retried": int(result.get("retried", 0))
+            })
         elif isinstance(result, int):
             status = result
+            token_results.append({"token_mask": "unknown", "status": status, "retried": 0})
         else:
             status = 997
+            token_results.append({"token_mask": "unknown", "status": status, "retried": 0})
 
         normalized_results.append(status)
         status_key = str(status)
@@ -308,7 +316,8 @@ async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_ap
         "failed_sends": failed_sends,
         "status_counts": status_counts,
         "retried_requests": retried_requests,
-        "used_concurrency": dynamic_concurrency
+        "used_concurrency": dynamic_concurrency,
+        "token_results": token_results
     }
 
 def make_profile_check_request(encrypted_profile_payload, server_name, token_dict):
@@ -462,6 +471,7 @@ def handle_requests():
     server_name_param = request.args.get("server_name", "").upper()
     use_random = request.args.get("random", "false").lower() == "true"
     verify_after_send = request.args.get("verify", "false").lower() == "true"
+    debug_mode = request.args.get("debug", "false").lower() == "true"
 
     if not uid_param or not server_name_param:
         return jsonify({"error": "UID and server_name are required"}), 400
@@ -527,7 +537,8 @@ def handle_requests():
             "successful_sends": 0,
             "failed_sends": 0,
             "status_counts": {},
-            "retried_requests": 0
+            "retried_requests": 0,
+            "token_results": []
         }
         
     # Fast response by default: single profile check after send.
@@ -589,11 +600,14 @@ def handle_requests():
         "LikeRequestConcurrency": like_send_summary.get("used_concurrency", 0),
         "LikeDiagnostic": like_diagnostic,
         "verifyMode": verify_after_send,
+        "debugMode": debug_mode,
         "Note": (
             f"Used visit token for profile check and {'random' if use_random else 'rotating'} "
             f"batch of {len(tokens_for_like_sending)} tokens for like sending."
         )
     }
+    if debug_mode:
+        response_data["TokenDebug"] = like_send_summary.get("token_results", [])
 
     duration_ms = int((time.time() - request_started_at) * 1000)
     response_data["responseMs"] = duration_ms
@@ -612,7 +626,8 @@ def handle_requests():
         "successful_requests": like_send_summary["successful_sends"],
         "failed_requests": like_send_summary["failed_sends"],
         "status_counts": like_send_summary["status_counts"],
-        "response_ms": duration_ms
+        "response_ms": duration_ms,
+        "token_results": like_send_summary.get("token_results", [])[:120]
     })
 
     return jsonify(response_data)

@@ -210,40 +210,71 @@
           <button id="refreshStats" class="btn secondary" type="button">Обновить статистику</button>
           <div id="statsCards" class="metrics"></div>
           <div id="configTable"></div>
-          <pre id="statsOut">Загрузка...</pre>
         </div>
 
         <div class="panel">
           <h3 class="title">🧩 Runtime Config</h3>
-          <textarea id="configInput">{
-  "MAX_CONCURRENT_LIKE_REQUESTS": 40,
-  "MIN_CONCURRENT_LIKE_REQUESTS": 10,
-  "LIKE_REQUEST_RETRIES": 2,
-  "LIKE_REQUEST_TIMEOUT_SECONDS": 6,
-  "PROFILE_RECHECK_ATTEMPTS": 4,
-  "PROFILE_RECHECK_DELAY_SECONDS": 1.0
-}</textarea>
+          <div class="grid" style="grid-template-columns:1fr 1fr;">
+            <div><label>MAX_CONCURRENT_LIKE_REQUESTS</label><input id="cfgMaxConc" type="number" min="1" max="200"></div>
+            <div><label>MIN_CONCURRENT_LIKE_REQUESTS</label><input id="cfgMinConc" type="number" min="1" max="200"></div>
+            <div><label>LIKE_REQUEST_RETRIES</label><input id="cfgRetries" type="number" min="1" max="10"></div>
+            <div><label>LIKE_REQUEST_TIMEOUT_SECONDS</label><input id="cfgTimeout" type="number" min="2" max="30"></div>
+            <div><label>PROFILE_RECHECK_ATTEMPTS</label><input id="cfgRechecks" type="number" min="1" max="10"></div>
+            <div><label>PROFILE_RECHECK_DELAY_SECONDS</label><input id="cfgDelay" type="number" min="0.2" max="5" step="0.1"></div>
+          </div>
+          <div class="top-actions">
+            <button id="presetSafe" class="btn secondary" type="button" style="max-width:220px;">Preset SAFE</button>
+            <button id="presetBalanced" class="btn secondary" type="button" style="max-width:220px;">Preset BALANCED</button>
+            <button id="presetTurbo" class="btn secondary" type="button" style="max-width:220px;">Preset TURBO</button>
+          </div>
           <button id="applyConfig" class="btn" type="button">Применить конфиг</button>
-          <pre id="configOut">-</pre>
+          <pre id="configOut" style="display:none;">-</pre>
         </div>
       </section>
 
       <section class="panel">
         <h3 class="title">📝 Request Logs</h3>
         <button id="refreshLogs" class="btn secondary" type="button">Обновить логи</button>
-        <pre id="logsOut">Загрузка...</pre>
+        <div id="logsTableWrap"></div>
+        <pre id="logsOut" style="display:none;">Загрузка...</pre>
       </section>
 
       <script>
-        const statsOut = document.getElementById('statsOut');
         const statsCards = document.getElementById('statsCards');
         const configTable = document.getElementById('configTable');
         const logsOut = document.getElementById('logsOut');
+        const logsTableWrap = document.getElementById('logsTableWrap');
         const configOut = document.getElementById('configOut');
+        const cfgInputs = {
+          MAX_CONCURRENT_LIKE_REQUESTS: document.getElementById('cfgMaxConc'),
+          MIN_CONCURRENT_LIKE_REQUESTS: document.getElementById('cfgMinConc'),
+          LIKE_REQUEST_RETRIES: document.getElementById('cfgRetries'),
+          LIKE_REQUEST_TIMEOUT_SECONDS: document.getElementById('cfgTimeout'),
+          PROFILE_RECHECK_ATTEMPTS: document.getElementById('cfgRechecks'),
+          PROFILE_RECHECK_DELAY_SECONDS: document.getElementById('cfgDelay')
+        };
 
         function formatNum(v) {
           const n = Number(v || 0);
           return n.toLocaleString('ru-RU');
+        }
+
+        function fillConfigInputs(conf) {
+          Object.entries(cfgInputs).forEach(([k, el]) => {
+            if (!el) return;
+            el.value = conf?.[k] ?? '';
+          });
+        }
+
+        function getConfigFromInputs() {
+          return {
+            MAX_CONCURRENT_LIKE_REQUESTS: Number(cfgInputs.MAX_CONCURRENT_LIKE_REQUESTS.value || 40),
+            MIN_CONCURRENT_LIKE_REQUESTS: Number(cfgInputs.MIN_CONCURRENT_LIKE_REQUESTS.value || 10),
+            LIKE_REQUEST_RETRIES: Number(cfgInputs.LIKE_REQUEST_RETRIES.value || 2),
+            LIKE_REQUEST_TIMEOUT_SECONDS: Number(cfgInputs.LIKE_REQUEST_TIMEOUT_SECONDS.value || 6),
+            PROFILE_RECHECK_ATTEMPTS: Number(cfgInputs.PROFILE_RECHECK_ATTEMPTS.value || 4),
+            PROFILE_RECHECK_DELAY_SECONDS: Number(cfgInputs.PROFILE_RECHECK_DELAY_SECONDS.value || 1.0)
+          };
         }
 
         function renderStatsPretty(data) {
@@ -257,6 +288,7 @@
           `;
 
           const conf = data.config || {};
+          fillConfigInputs(conf);
           const rows = Object.entries(conf).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
           configTable.innerHTML = `
             <table class="table">
@@ -270,12 +302,33 @@
           const res = await fetch('/admin/api/stats');
           const data = await res.json();
           renderStatsPretty(data);
-          statsOut.textContent = JSON.stringify(data, null, 2);
+        }
+
+        function renderLogsPretty(payload) {
+          const rows = (payload.logs || []).map(log => `
+            <tr>
+              <td>${log.time || '-'}</td>
+              <td>${log.uid || '-'}</td>
+              <td>${log.server || '-'}</td>
+              <td>${log.tokens_used || 0}</td>
+              <td>${log.likes_increment || 0}</td>
+              <td>${log.response_ms || 0}ms</td>
+            </tr>
+          `).join('');
+
+          logsTableWrap.innerHTML = `
+            <table class="table">
+              <thead><tr><th>Time</th><th>UID</th><th>Server</th><th>Tokens</th><th>+Likes</th><th>Latency</th></tr></thead>
+              <tbody>${rows || '<tr><td colspan=\"6\">Логи пока пустые</td></tr>'}</tbody>
+            </table>
+          `;
         }
 
         async function loadLogs() {
           const res = await fetch('/admin/api/logs?limit=120');
-          logsOut.textContent = JSON.stringify(await res.json(), null, 2);
+          const data = await res.json();
+          renderLogsPretty(data);
+          logsOut.textContent = JSON.stringify(data, null, 2);
         }
 
         document.getElementById('refreshStats').addEventListener('click', loadStats);
@@ -283,7 +336,7 @@
 
         document.getElementById('applyConfig').addEventListener('click', async () => {
           try {
-            const payload = JSON.parse(document.getElementById('configInput').value);
+            const payload = getConfigFromInputs();
             const res = await fetch('/admin/api/config', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -295,6 +348,19 @@
             configOut.textContent = 'Ошибка JSON: ' + String(e);
           }
         });
+
+        function applyPreset(name) {
+          const presets = {
+            safe: { MAX_CONCURRENT_LIKE_REQUESTS: 20, MIN_CONCURRENT_LIKE_REQUESTS: 6, LIKE_REQUEST_RETRIES: 3, LIKE_REQUEST_TIMEOUT_SECONDS: 8, PROFILE_RECHECK_ATTEMPTS: 4, PROFILE_RECHECK_DELAY_SECONDS: 1.2 },
+            balanced: { MAX_CONCURRENT_LIKE_REQUESTS: 40, MIN_CONCURRENT_LIKE_REQUESTS: 10, LIKE_REQUEST_RETRIES: 2, LIKE_REQUEST_TIMEOUT_SECONDS: 6, PROFILE_RECHECK_ATTEMPTS: 4, PROFILE_RECHECK_DELAY_SECONDS: 1.0 },
+            turbo: { MAX_CONCURRENT_LIKE_REQUESTS: 70, MIN_CONCURRENT_LIKE_REQUESTS: 18, LIKE_REQUEST_RETRIES: 1, LIKE_REQUEST_TIMEOUT_SECONDS: 4, PROFILE_RECHECK_ATTEMPTS: 2, PROFILE_RECHECK_DELAY_SECONDS: 0.6 }
+          };
+          fillConfigInputs(presets[name]);
+        }
+
+        document.getElementById('presetSafe').addEventListener('click', () => applyPreset('safe'));
+        document.getElementById('presetBalanced').addEventListener('click', () => applyPreset('balanced'));
+        document.getElementById('presetTurbo').addEventListener('click', () => applyPreset('turbo'));
 
         loadStats();
         loadLogs();
