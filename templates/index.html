@@ -71,7 +71,7 @@
 
     .tabs {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr auto;
       gap: 4px;
       background: #070b14;
       border: 1px solid #1b2230;
@@ -97,6 +97,21 @@
       background: linear-gradient(90deg, #ff2020, #ca0000);
       color: #fff;
       box-shadow: 0 0 16px var(--red-soft);
+    }
+
+    .admin-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 14px;
+      border-radius: 13px;
+      font-weight: 800;
+      color: #cdd8ef;
+      text-decoration: none;
+      border: 1px solid #29334a;
+      background: #0d1321;
+      text-transform: uppercase;
+      font-size: 0.76rem;
     }
 
     .panel {
@@ -325,7 +340,9 @@
     <section class="tabs" aria-label="tabs">
       <button id="likeTab" class="tab active" type="button">LIKE API</button>
       <button id="tokenTab" class="tab" type="button">TOKEN INFO</button>
+      <a class="admin-link" href="/admin">Admin</a>
     </section>
+    <p style="margin:0 0 12px;color:#7f8fb3;font-size:.78rem;">Admin panel: <b>/admin</b> (вход по спец-паролю).</p>
 
     <section id="likePanel" class="panel">
       <h2 class="title">🚀 LIKE API</h2>
