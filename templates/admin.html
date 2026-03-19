@@ -114,6 +114,40 @@
       word-break: break-word;
     }
 
+    .metrics {
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px;
+      margin-top:10px;
+    }
+
+    .metric {
+      border:1px solid #27344f;
+      border-radius:12px;
+      background: linear-gradient(180deg, #101a2e, #0c1424);
+      padding:10px;
+      text-align:center;
+    }
+
+    .metric .k { color:#8ba2cb; font-size:.74rem; text-transform:uppercase; }
+    .metric .v { font-size:1.2rem; font-weight:900; margin-top:4px; }
+
+    .table {
+      width:100%;
+      border-collapse: collapse;
+      margin-top:10px;
+      font-size:.84rem;
+      overflow:hidden;
+      border-radius:10px;
+    }
+    .table th, .table td {
+      border:1px solid #26344d;
+      padding:8px;
+      text-align:left;
+    }
+    .table th { background:#101a2e; color:#9fb4d8; text-transform:uppercase; font-size:.72rem; }
+    .table td { background:#0b1324; }
+
     .top-actions {
       display:flex;
       gap:10px;
@@ -136,6 +170,7 @@
 
     @media (max-width: 780px) {
       .grid { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
@@ -173,6 +208,8 @@
         <div class="panel">
           <h3 class="title">📊 Runtime Stats</h3>
           <button id="refreshStats" class="btn secondary" type="button">Обновить статистику</button>
+          <div id="statsCards" class="metrics"></div>
+          <div id="configTable"></div>
           <pre id="statsOut">Загрузка...</pre>
         </div>
 
@@ -199,12 +236,41 @@
 
       <script>
         const statsOut = document.getElementById('statsOut');
+        const statsCards = document.getElementById('statsCards');
+        const configTable = document.getElementById('configTable');
         const logsOut = document.getElementById('logsOut');
         const configOut = document.getElementById('configOut');
 
+        function formatNum(v) {
+          const n = Number(v || 0);
+          return n.toLocaleString('ru-RU');
+        }
+
+        function renderStatsPretty(data) {
+          statsCards.innerHTML = `
+            <div class="metric"><div class="k">Запросы всего</div><div class="v">${formatNum(data.total_requests)}</div></div>
+            <div class="metric"><div class="k">Успешные</div><div class="v">${formatNum(data.success_requests)}</div></div>
+            <div class="metric"><div class="k">Ошибки</div><div class="v">${formatNum(data.failed_requests)}</div></div>
+            <div class="metric"><div class="k">Успех %</div><div class="v">${formatNum(data.success_rate_percent)}%</div></div>
+            <div class="metric"><div class="k">Записей логов</div><div class="v">${formatNum(data.log_entries)}</div></div>
+            <div class="metric"><div class="k">Ретраи</div><div class="v">${formatNum(data.config?.LIKE_REQUEST_RETRIES)}</div></div>
+          `;
+
+          const conf = data.config || {};
+          const rows = Object.entries(conf).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+          configTable.innerHTML = `
+            <table class="table">
+              <thead><tr><th>Параметр</th><th>Значение</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          `;
+        }
+
         async function loadStats() {
           const res = await fetch('/admin/api/stats');
-          statsOut.textContent = JSON.stringify(await res.json(), null, 2);
+          const data = await res.json();
+          renderStatsPretty(data);
+          statsOut.textContent = JSON.stringify(data, null, 2);
         }
 
         async function loadLogs() {
