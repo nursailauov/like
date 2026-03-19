@@ -31,7 +31,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change_me_admin_123")
 ADMIN_OPERATOR_PASSWORD = os.getenv("ADMIN_OPERATOR_PASSWORD", ADMIN_PASSWORD)
 ADMIN_VIEWER_PASSWORD = os.getenv("ADMIN_VIEWER_PASSWORD", ADMIN_PASSWORD)
 ADMIN_LOG_LIMIT = 500
-LIKE_DB_PATH = os.getenv("LIKE_DB_PATH", "like_logs.db")
+LIKE_DB_PATH = os.getenv("LIKE_DB_PATH", "/tmp/like_logs.db")
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Global State for Batch Management
@@ -43,6 +43,7 @@ stats_counters = {
     "success_requests": 0,
     "failed_requests": 0
 }
+DB_ENABLED = True
 
 def get_next_batch_tokens(server_name, all_tokens):
     if not all_tokens:
@@ -376,19 +377,25 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "change_me_flask_secret")
 
 def init_db():
-    conn = sqlite3.connect(LIKE_DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS request_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT,
-            uid TEXT,
-            server TEXT,
-            payload_json TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+    global DB_ENABLED
+    try:
+        conn = sqlite3.connect(LIKE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS request_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT,
+                uid TEXT,
+                server TEXT,
+                payload_json TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+        DB_ENABLED = True
+    except Exception as e:
+        DB_ENABLED = False
+        print(f"Warning: SQLite disabled ({e}). Running with in-memory logs only.")
 
 init_db()
 
@@ -408,16 +415,29 @@ def admin_required(min_role="viewer"):
 
 def add_request_log(entry):
     request_logs.appendleft(entry)
-    conn = sqlite3.connect(LIKE_DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO request_logs (created_at, uid, server, payload_json) VALUES (?, ?, ?, ?)",
-        (entry.get("time"), str(entry.get("uid")), str(entry.get("server")), json.dumps(entry, ensure_ascii=False))
-    )
-    conn.commit()
-    conn.close()
+    if not DB_ENABLED:
+        return
+    try:
+        conn = sqlite3.connect(LIKE_DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO request_logs (created_at, uid, server, payload_json) VALUES (?, ?, ?, ?)",
+            (entry.get("time"), str(entry.get("uid")), str(entry.get("server")), json.dumps(entry, ensure_ascii=False))
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Warning: failed to persist log into SQLite ({e})")
 
 def fetch_logs_from_db(limit=100, uid=None, server=None):
+    if not DB_ENABLED:
+        logs = list(request_logs)
+        if uid:
+            logs = [x for x in logs if str(x.get("uid")) == str(uid)]
+        if server:
+            logs = [x for x in logs if str(x.get("server")) == str(server)]
+        return logs[:limit]
+
     conn = sqlite3.connect(LIKE_DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
@@ -431,10 +451,15 @@ def fetch_logs_from_db(limit=100, uid=None, server=None):
         params.append(str(server))
     query += " ORDER BY id DESC LIMIT ?"
     params.append(limit)
-    cur.execute(query, params)
-    rows = [json.loads(row["payload_json"]) for row in cur.fetchall()]
-    conn.close()
-    return rows
+    try:
+        cur.execute(query, params)
+        rows = [json.loads(row["payload_json"]) for row in cur.fetchall()]
+        conn.close()
+        return rows
+    except Exception as e:
+        print(f"Warning: failed to read logs from SQLite ({e})")
+        conn.close()
+        return list(request_logs)[:limit]
 
 def get_compact_runtime_stats():
     return {
