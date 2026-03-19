@@ -127,6 +127,42 @@ def enc_profile_check_payload(uid):
     encrypted_uid = encrypt_message(protobuf_data)
     return encrypted_uid
 
+def build_like_diagnostic(likes_increment, like_send_summary, token_batch_size):
+    """Explain why delivered likes can be lower than token count."""
+    successful = like_send_summary.get("successful_sends", 0)
+    failed = like_send_summary.get("failed_sends", 0)
+    status_counts = like_send_summary.get("status_counts", {})
+    retried = like_send_summary.get("retried_requests", 0)
+
+    possible_reasons = []
+    if failed > 0:
+        possible_reasons.append(
+            "Some requests failed (timeouts/network/HTTP errors). Check status_counts."
+        )
+
+    if successful > likes_increment:
+        possible_reasons.append(
+            "Some successful requests did not increase likes (possible per-profile cap, duplicate liker accounts, or server-side anti-spam filtering)."
+        )
+
+    if likes_increment == 20 and token_batch_size > 20:
+        possible_reasons.append(
+            "Like increase stopped at 20 while more than 20 tokens were used. This often indicates a server/game cap for the current period."
+        )
+
+    if not possible_reasons:
+        possible_reasons.append("No obvious issue detected from transport layer.")
+
+    return {
+        "token_batch_size": token_batch_size,
+        "successful_requests": successful,
+        "failed_requests": failed,
+        "likes_increment": likes_increment,
+        "retried_requests": retried,
+        "status_counts": status_counts,
+        "possible_reasons": possible_reasons
+    }
+
 async def send_single_like_request(encrypted_like_payload, token_dict, url, session, semaphore):
     edata = bytes.fromhex(encrypted_like_payload)
     token_value = token_dict.get("token", "")
@@ -145,25 +181,34 @@ async def send_single_like_request(encrypted_like_payload, token_dict, url, sess
         'X-GA': "v1 1",
         'ReleaseVersion': "OB52"
     }
+    retried = 0
     for attempt in range(1, LIKE_REQUEST_RETRIES + 1):
+        if attempt > 1:
+            retried = 1
         try:
             async with semaphore:
                 async with session.post(url, data=edata, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
                     if response.status == 200:
-                        return 200
+                        return {"status": 200, "retried": retried}
                     print(
                         f"Like request failed for token {token_value[:10]}... "
                         f"with status: {response.status} (attempt {attempt}/{LIKE_REQUEST_RETRIES})"
                     )
+                    if attempt == LIKE_REQUEST_RETRIES:
+                        return {"status": response.status, "retried": retried}
         except asyncio.TimeoutError:
             print(f"Like request timed out for token {token_value[:10]}... (attempt {attempt}/{LIKE_REQUEST_RETRIES})")
+            if attempt == LIKE_REQUEST_RETRIES:
+                return {"status": 998, "retried": retried}
         except Exception as e:
             print(f"Exception in send_single_like_request for token {token_value[:10]}...: {e} (attempt {attempt}/{LIKE_REQUEST_RETRIES})")
+            if attempt == LIKE_REQUEST_RETRIES:
+                return {"status": 997, "retried": retried}
 
         if attempt < LIKE_REQUEST_RETRIES:
             await asyncio.sleep(0.3 * attempt)
 
-    return 997
+    return {"status": 997, "retried": retried}
 
 async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_api_url, token_batch_to_use):
     if not token_batch_to_use:
@@ -190,13 +235,31 @@ async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_ap
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
     
-    successful_sends = sum(1 for r in results if isinstance(r, int) and r == 200)
+    normalized_results = []
+    status_counts = {}
+    retried_requests = 0
+    for result in results:
+        if isinstance(result, dict):
+            status = int(result.get("status", 997))
+            retried_requests += int(result.get("retried", 0))
+        elif isinstance(result, int):
+            status = result
+        else:
+            status = 997
+
+        normalized_results.append(status)
+        status_key = str(status)
+        status_counts[status_key] = status_counts.get(status_key, 0) + 1
+
+    successful_sends = sum(1 for status in normalized_results if status == 200)
     failed_sends = len(token_batch_to_use) - successful_sends
     print(f"Attempted {len(token_batch_to_use)} like sends from batch. Successful: {successful_sends}, Failed/Error: {failed_sends}")
     return {
-        "results": results,
+        "results": normalized_results,
         "successful_sends": successful_sends,
-        "failed_sends": failed_sends
+        "failed_sends": failed_sends,
+        "status_counts": status_counts,
+        "retried_requests": retried_requests
     }
 
 def make_profile_check_request(encrypted_profile_payload, server_name, token_dict):
@@ -322,7 +385,9 @@ def handle_requests():
         like_send_summary = {
             "results": [],
             "successful_sends": 0,
-            "failed_sends": 0
+            "failed_sends": 0,
+            "status_counts": {},
+            "retried_requests": 0
         }
         
     # Get likes AFTER using visit token
@@ -354,6 +419,7 @@ def handle_requests():
 
     likes_increment = after_like_count - before_like_count
     request_status = 1 if likes_increment > 0 else (2 if likes_increment == 0 else 3)
+    like_diagnostic = build_like_diagnostic(likes_increment, like_send_summary, len(tokens_for_like_sending))
 
     response_data = {
         "LikesGivenByAPI": likes_increment,
@@ -364,6 +430,9 @@ def handle_requests():
         "status": request_status,
         "LikeRequestsSuccessful": like_send_summary["successful_sends"],
         "LikeRequestsFailed": like_send_summary["failed_sends"],
+        "LikeRequestStatusCounts": like_send_summary["status_counts"],
+        "LikeRequestRetried": like_send_summary["retried_requests"],
+        "LikeDiagnostic": like_diagnostic,
         "Note": (
             f"Used visit token for profile check and {'random' if use_random else 'rotating'} "
             f"batch of {len(tokens_for_like_sending)} tokens for like sending."
