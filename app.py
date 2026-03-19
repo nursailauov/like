@@ -15,6 +15,8 @@ import random
 
 # Configuration
 TOKEN_BATCH_SIZE = 100
+MAX_CONCURRENT_LIKE_REQUESTS = 5
+LIKE_REQUEST_RETRIES = 3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Global State for Batch Management
@@ -125,7 +127,7 @@ def enc_profile_check_payload(uid):
     encrypted_uid = encrypt_message(protobuf_data)
     return encrypted_uid
 
-async def send_single_like_request(encrypted_like_payload, token_dict, url):
+async def send_single_like_request(encrypted_like_payload, token_dict, url, session, semaphore):
     edata = bytes.fromhex(encrypted_like_payload)
     token_value = token_dict.get("token", "")
     if not token_value:
@@ -143,18 +145,25 @@ async def send_single_like_request(encrypted_like_payload, token_dict, url):
         'X-GA': "v1 1",
         'ReleaseVersion': "OB52"
     }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=edata, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                if response.status != 200:
-                    print(f"Like request failed for token {token_value[:10]}... with status: {response.status}")
-                return response.status
-    except asyncio.TimeoutError:
-        print(f"Like request timed out for token {token_value[:10]}...")
-        return 998
-    except Exception as e:
-        print(f"Exception in send_single_like_request for token {token_value[:10]}...: {e}")
-        return 997
+    for attempt in range(1, LIKE_REQUEST_RETRIES + 1):
+        try:
+            async with semaphore:
+                async with session.post(url, data=edata, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        return 200
+                    print(
+                        f"Like request failed for token {token_value[:10]}... "
+                        f"with status: {response.status} (attempt {attempt}/{LIKE_REQUEST_RETRIES})"
+                    )
+        except asyncio.TimeoutError:
+            print(f"Like request timed out for token {token_value[:10]}... (attempt {attempt}/{LIKE_REQUEST_RETRIES})")
+        except Exception as e:
+            print(f"Exception in send_single_like_request for token {token_value[:10]}...: {e} (attempt {attempt}/{LIKE_REQUEST_RETRIES})")
+
+        if attempt < LIKE_REQUEST_RETRIES:
+            await asyncio.sleep(0.3 * attempt)
+
+    return 997
 
 async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_api_url, token_batch_to_use):
     if not token_batch_to_use:
@@ -164,16 +173,31 @@ async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_ap
     like_protobuf_payload = create_protobuf_message(uid, server_region_for_like_proto)
     encrypted_like_payload = encrypt_message(like_protobuf_payload)
     
-    tasks = []
-    for token_dict_for_request in token_batch_to_use:
-        tasks.append(send_single_like_request(encrypted_like_payload, token_dict_for_request, like_api_url))
-    
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_LIKE_REQUESTS)
+    timeout = aiohttp.ClientTimeout(total=15)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        tasks = []
+        for token_dict_for_request in token_batch_to_use:
+            tasks.append(
+                send_single_like_request(
+                    encrypted_like_payload,
+                    token_dict_for_request,
+                    like_api_url,
+                    session,
+                    semaphore
+                )
+            )
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
     
     successful_sends = sum(1 for r in results if isinstance(r, int) and r == 200)
     failed_sends = len(token_batch_to_use) - successful_sends
     print(f"Attempted {len(token_batch_to_use)} like sends from batch. Successful: {successful_sends}, Failed/Error: {failed_sends}")
-    return results
+    return {
+        "results": results,
+        "successful_sends": successful_sends,
+        "failed_sends": failed_sends
+    }
 
 def make_profile_check_request(encrypted_profile_payload, server_name, token_dict):
     token_value = token_dict.get("token", "")
@@ -288,11 +312,18 @@ def handle_requests():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(send_likes_with_token_batch(uid_param, server_name_param, like_api_url, tokens_for_like_sending))
+            like_send_summary = loop.run_until_complete(
+                send_likes_with_token_batch(uid_param, server_name_param, like_api_url, tokens_for_like_sending)
+            )
         finally:
             loop.close()
     else:
         print(f"Skipping like sending for UID {uid_param} as no tokens available for like sending.")
+        like_send_summary = {
+            "results": [],
+            "successful_sends": 0,
+            "failed_sends": 0
+        }
         
     # Get likes AFTER using visit token
     after_info = make_profile_check_request(encrypted_player_uid_for_profile, server_name_param, visit_token)
@@ -331,7 +362,12 @@ def handle_requests():
         "PlayerNickname": player_nickname_from_profile,
         "UID": actual_player_uid_from_profile,
         "status": request_status,
-        "Note": f"Used visit token for profile check and {'random' if use_random else 'rotating'} batch of {len(tokens_for_like_sending)} tokens for like sending."
+        "LikeRequestsSuccessful": like_send_summary["successful_sends"],
+        "LikeRequestsFailed": like_send_summary["failed_sends"],
+        "Note": (
+            f"Used visit token for profile check and {'random' if use_random else 'rotating'} "
+            f"batch of {len(tokens_for_like_sending)} tokens for like sending."
+        )
     }
     return jsonify(response_data)
 
