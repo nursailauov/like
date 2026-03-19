@@ -12,11 +12,16 @@ import uid_generator_pb2
 import threading
 import urllib3
 import random
+import time
 
 # Configuration
 TOKEN_BATCH_SIZE = 100
-MAX_CONCURRENT_LIKE_REQUESTS = 5
-LIKE_REQUEST_RETRIES = 3
+MAX_CONCURRENT_LIKE_REQUESTS = 40
+MIN_CONCURRENT_LIKE_REQUESTS = 10
+LIKE_REQUEST_RETRIES = 2
+LIKE_REQUEST_TIMEOUT_SECONDS = 6
+PROFILE_RECHECK_ATTEMPTS = 4
+PROFILE_RECHECK_DELAY_SECONDS = 1.0
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Global State for Batch Management
@@ -163,6 +168,32 @@ def build_like_diagnostic(likes_increment, like_send_summary, token_batch_size):
         "possible_reasons": possible_reasons
     }
 
+def get_dynamic_concurrency(token_batch_size):
+    if token_batch_size <= 0:
+        return MIN_CONCURRENT_LIKE_REQUESTS
+    return max(MIN_CONCURRENT_LIKE_REQUESTS, min(MAX_CONCURRENT_LIKE_REQUESTS, token_batch_size))
+
+def fetch_like_count_with_retry(encrypted_player_uid_for_profile, server_name_param, visit_token, base_like_count):
+    """Re-check profile a few times because like counters can be eventually consistent."""
+    latest_like_count = base_like_count
+    latest_profile = None
+
+    for attempt in range(1, PROFILE_RECHECK_ATTEMPTS + 1):
+        profile_info = make_profile_check_request(encrypted_player_uid_for_profile, server_name_param, visit_token)
+        if profile_info and hasattr(profile_info, 'AccountInfo'):
+            latest_profile = profile_info
+            try:
+                fresh_count = int(profile_info.AccountInfo.Likes)
+                if fresh_count >= latest_like_count:
+                    latest_like_count = fresh_count
+            except Exception:
+                pass
+
+        if attempt < PROFILE_RECHECK_ATTEMPTS:
+            time.sleep(PROFILE_RECHECK_DELAY_SECONDS)
+
+    return latest_like_count, latest_profile
+
 async def send_single_like_request(encrypted_like_payload, token_dict, url, session, semaphore):
     edata = bytes.fromhex(encrypted_like_payload)
     token_value = token_dict.get("token", "")
@@ -187,7 +218,7 @@ async def send_single_like_request(encrypted_like_payload, token_dict, url, sess
             retried = 1
         try:
             async with semaphore:
-                async with session.post(url, data=edata, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                async with session.post(url, data=edata, headers=headers, timeout=aiohttp.ClientTimeout(total=LIKE_REQUEST_TIMEOUT_SECONDS)) as response:
                     if response.status == 200:
                         return {"status": 200, "retried": retried}
                     print(
@@ -218,9 +249,11 @@ async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_ap
     like_protobuf_payload = create_protobuf_message(uid, server_region_for_like_proto)
     encrypted_like_payload = encrypt_message(like_protobuf_payload)
     
-    semaphore = asyncio.Semaphore(MAX_CONCURRENT_LIKE_REQUESTS)
-    timeout = aiohttp.ClientTimeout(total=15)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
+    dynamic_concurrency = get_dynamic_concurrency(len(token_batch_to_use))
+    semaphore = asyncio.Semaphore(dynamic_concurrency)
+    timeout = aiohttp.ClientTimeout(total=LIKE_REQUEST_TIMEOUT_SECONDS + 2)
+    connector = aiohttp.TCPConnector(limit=dynamic_concurrency * 2, ttl_dns_cache=300)
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         tasks = []
         for token_dict_for_request in token_batch_to_use:
             tasks.append(
@@ -253,13 +286,17 @@ async def send_likes_with_token_batch(uid, server_region_for_like_proto, like_ap
 
     successful_sends = sum(1 for status in normalized_results if status == 200)
     failed_sends = len(token_batch_to_use) - successful_sends
-    print(f"Attempted {len(token_batch_to_use)} like sends from batch. Successful: {successful_sends}, Failed/Error: {failed_sends}")
+    print(
+        f"Attempted {len(token_batch_to_use)} like sends from batch with concurrency={dynamic_concurrency}. "
+        f"Successful: {successful_sends}, Failed/Error: {failed_sends}"
+    )
     return {
         "results": normalized_results,
         "successful_sends": successful_sends,
         "failed_sends": failed_sends,
         "status_counts": status_counts,
-        "retried_requests": retried_requests
+        "retried_requests": retried_requests,
+        "used_concurrency": dynamic_concurrency
     }
 
 def make_profile_check_request(encrypted_profile_payload, server_name, token_dict):
@@ -390,9 +427,13 @@ def handle_requests():
             "retried_requests": 0
         }
         
-    # Get likes AFTER using visit token
-    after_info = make_profile_check_request(encrypted_player_uid_for_profile, server_name_param, visit_token)
-    after_like_count = before_like_count
+    # Get likes AFTER using visit token (with re-checks for eventual consistency)
+    after_like_count, after_info = fetch_like_count_with_retry(
+        encrypted_player_uid_for_profile,
+        server_name_param,
+        visit_token,
+        before_like_count
+    )
     actual_player_uid_from_profile = int(uid_param)
     player_nickname_from_profile = "N/A"
 
@@ -432,6 +473,7 @@ def handle_requests():
         "LikeRequestsFailed": like_send_summary["failed_sends"],
         "LikeRequestStatusCounts": like_send_summary["status_counts"],
         "LikeRequestRetried": like_send_summary["retried_requests"],
+        "LikeRequestConcurrency": like_send_summary.get("used_concurrency", 0),
         "LikeDiagnostic": like_diagnostic,
         "Note": (
             f"Used visit token for profile check and {'random' if use_random else 'rotating'} "
