@@ -195,7 +195,7 @@
     {% else %}
       <section class="panel">
         <h2 class="title">⚙️ Управление</h2>
-        <p class="muted">Админка полностью в стиле основного сайта: тёмный неон + красные акценты.</p>
+        <p class="muted">Админка полностью в стиле основного сайта: тёмный неон + красные акценты. Роль: <b>{{ admin_role }}</b></p>
         <div class="top-actions">
           <a href="/">← Вернуться в Like API</a>
         </div>
@@ -234,7 +234,13 @@
 
       <section class="panel">
         <h3 class="title">📝 Request Logs</h3>
-        <button id="refreshLogs" class="btn secondary" type="button">Обновить логи</button>
+        <div class="top-actions">
+          <input id="filterUid" placeholder="Фильтр UID" style="max-width:180px;">
+          <input id="filterServer" placeholder="Фильтр Server" style="max-width:140px;">
+          <button id="refreshLogs" class="btn secondary" type="button" style="max-width:220px;">Обновить логи</button>
+          <a id="exportCsv" href="/admin/api/logs.csv?limit=300" style="max-width:220px;text-align:center;">Export CSV</a>
+        </div>
+        <canvas id="logsChart" height="90" style="width:100%;margin-top:8px;background:#0b1324;border:1px solid #26344d;border-radius:10px;"></canvas>
         <div id="logsTableWrap"></div>
         <pre id="logsOut" style="display:none;">Загрузка...</pre>
       </section>
@@ -244,6 +250,9 @@
         const configTable = document.getElementById('configTable');
         const logsOut = document.getElementById('logsOut');
         const logsTableWrap = document.getElementById('logsTableWrap');
+        const filterUid = document.getElementById('filterUid');
+        const filterServer = document.getElementById('filterServer');
+        const logsChart = document.getElementById('logsChart');
         const configOut = document.getElementById('configOut');
         const cfgInputs = {
           MAX_CONCURRENT_LIKE_REQUESTS: document.getElementById('cfgMaxConc'),
@@ -322,13 +331,29 @@
               <tbody>${rows || '<tr><td colspan=\"6\">Логи пока пустые</td></tr>'}</tbody>
             </table>
           `;
+
+          const ctx = logsChart.getContext('2d');
+          ctx.clearRect(0, 0, logsChart.width, logsChart.height);
+          const logs = payload.logs || [];
+          const maxVal = Math.max(1, ...logs.map(l => Number(l.likes_increment || 0)));
+          const step = logs.length ? logsChart.width / logs.length : logsChart.width;
+          logs.slice(0, 50).forEach((log, i) => {
+            const val = Number(log.likes_increment || 0);
+            const h = Math.max(2, (val / maxVal) * (logsChart.height - 10));
+            ctx.fillStyle = val >= 20 ? '#2f8fff' : '#ff1717';
+            ctx.fillRect(i * step, logsChart.height - h, Math.max(3, step - 2), h);
+          });
         }
 
         async function loadLogs() {
-          const res = await fetch('/admin/api/logs?limit=120');
+          const uid = encodeURIComponent(filterUid.value || '');
+          const server = encodeURIComponent(filterServer.value || '');
+          const query = `/admin/api/logs?limit=120&uid=${uid}&server=${server}`;
+          const res = await fetch(query);
           const data = await res.json();
           renderLogsPretty(data);
           logsOut.textContent = JSON.stringify(data, null, 2);
+          document.getElementById('exportCsv').href = `/admin/api/logs.csv?limit=300&uid=${uid}&server=${server}`;
         }
 
         document.getElementById('refreshStats').addEventListener('click', loadStats);

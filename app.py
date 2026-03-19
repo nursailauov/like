@@ -17,6 +17,7 @@ import os
 from datetime import datetime
 from collections import deque
 from functools import wraps
+import sqlite3
 
 # Configuration
 TOKEN_BATCH_SIZE = 100
@@ -27,7 +28,10 @@ LIKE_REQUEST_TIMEOUT_SECONDS = 6
 PROFILE_RECHECK_ATTEMPTS = 4
 PROFILE_RECHECK_DELAY_SECONDS = 1.0
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change_me_admin_123")
+ADMIN_OPERATOR_PASSWORD = os.getenv("ADMIN_OPERATOR_PASSWORD", ADMIN_PASSWORD)
+ADMIN_VIEWER_PASSWORD = os.getenv("ADMIN_VIEWER_PASSWORD", ADMIN_PASSWORD)
 ADMIN_LOG_LIMIT = 500
+LIKE_DB_PATH = os.getenv("LIKE_DB_PATH", "like_logs.db")
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Global State for Batch Management
@@ -371,16 +375,66 @@ def decode_protobuf_profile_info(binary_data):
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "change_me_flask_secret")
 
-def admin_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("is_admin"):
-            return redirect(url_for("admin_login"))
-        return view_func(*args, **kwargs)
-    return wrapped
+def init_db():
+    conn = sqlite3.connect(LIKE_DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS request_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT,
+            uid TEXT,
+            server TEXT,
+            payload_json TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def admin_required(min_role="viewer"):
+    role_weight = {"viewer": 1, "operator": 2, "owner": 3}
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapped(*args, **kwargs):
+            if not session.get("is_admin"):
+                return redirect(url_for("admin_login"))
+            current_role = session.get("admin_role", "viewer")
+            if role_weight.get(current_role, 0) < role_weight.get(min_role, 1):
+                return jsonify({"error": "Недостаточно прав"}), 403
+            return view_func(*args, **kwargs)
+        return wrapped
+    return decorator
 
 def add_request_log(entry):
     request_logs.appendleft(entry)
+    conn = sqlite3.connect(LIKE_DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO request_logs (created_at, uid, server, payload_json) VALUES (?, ?, ?, ?)",
+        (entry.get("time"), str(entry.get("uid")), str(entry.get("server")), json.dumps(entry, ensure_ascii=False))
+    )
+    conn.commit()
+    conn.close()
+
+def fetch_logs_from_db(limit=100, uid=None, server=None):
+    conn = sqlite3.connect(LIKE_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    query = "SELECT payload_json FROM request_logs WHERE 1=1"
+    params = []
+    if uid:
+        query += " AND uid = ?"
+        params.append(str(uid))
+    if server:
+        query += " AND server = ?"
+        params.append(str(server))
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    cur.execute(query, params)
+    rows = [json.loads(row["payload_json"]) for row in cur.fetchall()]
+    conn.close()
+    return rows
 
 def get_compact_runtime_stats():
     return {
@@ -391,6 +445,7 @@ def get_compact_runtime_stats():
             (stats_counters["success_requests"] / stats_counters["total_requests"] * 100), 2
         ) if stats_counters["total_requests"] else 0.0,
         "log_entries": len(request_logs),
+        "admin_role": session.get("admin_role", "viewer") if session else "viewer",
         "config": {
             "TOKEN_BATCH_SIZE": TOKEN_BATCH_SIZE,
             "MAX_CONCURRENT_LIKE_REQUESTS": MAX_CONCURRENT_LIKE_REQUESTS,
@@ -414,34 +469,62 @@ def admin_login():
         password = request.form.get("password", "")
         if password == ADMIN_PASSWORD:
             session["is_admin"] = True
+            session["admin_role"] = "owner"
+            return redirect(url_for("admin_dashboard"))
+        elif password == ADMIN_OPERATOR_PASSWORD:
+            session["is_admin"] = True
+            session["admin_role"] = "operator"
+            return redirect(url_for("admin_dashboard"))
+        elif password == ADMIN_VIEWER_PASSWORD:
+            session["is_admin"] = True
+            session["admin_role"] = "viewer"
             return redirect(url_for("admin_dashboard"))
         error = "Неверный админ пароль"
-    return render_template('admin.html', error=error, is_admin=bool(session.get("is_admin")))
+    return render_template('admin.html', error=error, is_admin=bool(session.get("is_admin")), admin_role=session.get("admin_role", "viewer"))
 
 @app.route('/admin/dashboard', methods=['GET'])
-@admin_required
+@admin_required("viewer")
 def admin_dashboard():
-    return render_template('admin.html', error="", is_admin=True)
+    return render_template('admin.html', error="", is_admin=True, admin_role=session.get("admin_role", "viewer"))
 
 @app.route('/admin/logout', methods=['POST'])
-@admin_required
+@admin_required("viewer")
 def admin_logout():
     session.clear()
     return redirect(url_for("admin_login"))
 
 @app.route('/admin/api/stats', methods=['GET'])
-@admin_required
+@admin_required("viewer")
 def admin_api_stats():
     return jsonify(get_compact_runtime_stats())
 
 @app.route('/admin/api/logs', methods=['GET'])
-@admin_required
+@admin_required("viewer")
 def admin_api_logs():
     limit = min(int(request.args.get("limit", 100)), ADMIN_LOG_LIMIT)
-    return jsonify({"logs": list(request_logs)[:limit]})
+    uid = request.args.get("uid")
+    server = request.args.get("server")
+    return jsonify({"logs": fetch_logs_from_db(limit=limit, uid=uid, server=server)})
+
+@app.route('/admin/api/logs.csv', methods=['GET'])
+@admin_required("viewer")
+def admin_api_logs_csv():
+    import csv
+    from io import StringIO
+    logs = fetch_logs_from_db(
+        limit=min(int(request.args.get("limit", 300)), 1000),
+        uid=request.args.get("uid"),
+        server=request.args.get("server")
+    )
+    stream = StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(["time", "uid", "server", "tokens_used", "likes_increment", "successful_requests", "failed_requests", "response_ms"])
+    for item in logs:
+        writer.writerow([item.get("time"), item.get("uid"), item.get("server"), item.get("tokens_used"), item.get("likes_increment"), item.get("successful_requests"), item.get("failed_requests"), item.get("response_ms")])
+    return app.response_class(stream.getvalue(), mimetype="text/csv")
 
 @app.route('/admin/api/config', methods=['POST'])
-@admin_required
+@admin_required("operator")
 def admin_api_config():
     global MAX_CONCURRENT_LIKE_REQUESTS, MIN_CONCURRENT_LIKE_REQUESTS, LIKE_REQUEST_RETRIES
     global LIKE_REQUEST_TIMEOUT_SECONDS, PROFILE_RECHECK_ATTEMPTS, PROFILE_RECHECK_DELAY_SECONDS
@@ -472,6 +555,7 @@ def handle_requests():
     use_random = request.args.get("random", "false").lower() == "true"
     verify_after_send = request.args.get("verify", "false").lower() == "true"
     debug_mode = request.args.get("debug", "false").lower() == "true"
+    waves = max(1, min(5, int(request.args.get("waves", 1))))
 
     if not uid_param or not server_name_param:
         return jsonify({"error": "UID and server_name are required"}), 400
@@ -525,9 +609,32 @@ def handle_requests():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            like_send_summary = loop.run_until_complete(
-                send_likes_with_token_batch(uid_param, server_name_param, like_api_url, tokens_for_like_sending)
-            )
+            if waves == 1:
+                like_send_summary = loop.run_until_complete(
+                    send_likes_with_token_batch(uid_param, server_name_param, like_api_url, tokens_for_like_sending)
+                )
+            else:
+                chunk_size = max(1, len(tokens_for_like_sending) // waves)
+                wave_summaries = []
+                for i in range(0, len(tokens_for_like_sending), chunk_size):
+                    chunk = tokens_for_like_sending[i:i + chunk_size]
+                    wave_summaries.append(
+                        loop.run_until_complete(send_likes_with_token_batch(uid_param, server_name_param, like_api_url, chunk))
+                    )
+                    time.sleep(0.6)
+
+                like_send_summary = {
+                    "results": [x for w in wave_summaries for x in w.get("results", [])],
+                    "successful_sends": sum(w.get("successful_sends", 0) for w in wave_summaries),
+                    "failed_sends": sum(w.get("failed_sends", 0) for w in wave_summaries),
+                    "status_counts": {},
+                    "retried_requests": sum(w.get("retried_requests", 0) for w in wave_summaries),
+                    "token_results": [x for w in wave_summaries for x in w.get("token_results", [])],
+                    "used_concurrency": max((w.get("used_concurrency", 0) for w in wave_summaries), default=0)
+                }
+                for w in wave_summaries:
+                    for k, v in w.get("status_counts", {}).items():
+                        like_send_summary["status_counts"][k] = like_send_summary["status_counts"].get(k, 0) + v
         finally:
             loop.close()
     else:
@@ -601,6 +708,7 @@ def handle_requests():
         "LikeDiagnostic": like_diagnostic,
         "verifyMode": verify_after_send,
         "debugMode": debug_mode,
+        "waves": waves,
         "Note": (
             f"Used visit token for profile check and {'random' if use_random else 'rotating'} "
             f"batch of {len(tokens_for_like_sending)} tokens for like sending."

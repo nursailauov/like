@@ -383,6 +383,7 @@
             <div id="likesAfter" class="val">0</div>
           </div>
         </div>
+        <div id="diagBox" style="margin-top:10px;padding:10px;border-radius:10px;border:1px solid #293347;background:#09101b;color:#b8c7e9;font-size:.82rem;"></div>
       </div>
 
     </section>
@@ -447,6 +448,7 @@
     const likesBefore = document.getElementById('likesBefore');
     const likesGiven = document.getElementById('likesGiven');
     const likesAfter = document.getElementById('likesAfter');
+    const diagBox = document.getElementById('diagBox');
 
     const tokenGrid = document.getElementById('tokenGrid');
     const tokenRaw = document.getElementById('tokenRaw');
@@ -496,6 +498,13 @@
       avatar.src = `https://api.dicebear.com/8.x/adventurer/svg?seed=${avatarSeed}`;
 
       resultCard.classList.remove('hidden');
+
+      const reasons = (data.LikeDiagnostic && Array.isArray(data.LikeDiagnostic.possible_reasons))
+        ? data.LikeDiagnostic.possible_reasons
+        : [];
+      diagBox.textContent = reasons.length
+        ? `Диагностика: ${reasons.join(' | ')}`
+        : 'Диагностика: нет явных проблем.';
     }
 
     async function loadTokenInfo() {
