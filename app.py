@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, session, redirect, url_for
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for, Response
 import asyncio
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -27,7 +27,7 @@ LIKE_REQUEST_RETRIES = 2
 LIKE_REQUEST_TIMEOUT_SECONDS = 6
 PROFILE_RECHECK_ATTEMPTS = 4
 PROFILE_RECHECK_DELAY_SECONDS = 1.0
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change_me_admin_123")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 ADMIN_OPERATOR_PASSWORD = os.getenv("ADMIN_OPERATOR_PASSWORD", ADMIN_PASSWORD)
 ADMIN_VIEWER_PASSWORD = os.getenv("ADMIN_VIEWER_PASSWORD", ADMIN_PASSWORD)
 ADMIN_LOG_LIMIT = 500
@@ -461,6 +461,9 @@ def fetch_logs_from_db(limit=100, uid=None, server=None):
         conn.close()
         return list(request_logs)[:limit]
 
+def build_logs_payload(limit=100, uid=None, server=None):
+    return {"logs": fetch_logs_from_db(limit=limit, uid=uid, server=server)}
+
 def get_compact_runtime_stats():
     return {
         "total_requests": stats_counters["total_requests"],
@@ -529,7 +532,27 @@ def admin_api_logs():
     limit = min(int(request.args.get("limit", 100)), ADMIN_LOG_LIMIT)
     uid = request.args.get("uid")
     server = request.args.get("server")
-    return jsonify({"logs": fetch_logs_from_db(limit=limit, uid=uid, server=server)})
+    return jsonify(build_logs_payload(limit=limit, uid=uid, server=server))
+
+@app.route('/admin/api/logs/stream', methods=['GET'])
+@admin_required("viewer")
+def admin_api_logs_stream():
+    limit = min(int(request.args.get("limit", 120)), ADMIN_LOG_LIMIT)
+    uid = request.args.get("uid")
+    server = request.args.get("server")
+
+    def event_stream():
+        last_payload = ""
+        while True:
+            payload = json.dumps(build_logs_payload(limit=limit, uid=uid, server=server), ensure_ascii=False)
+            if payload != last_payload:
+                yield f"event: logs\ndata: {payload}\n\n"
+                last_payload = payload
+            else:
+                yield "event: ping\ndata: {}\n\n"
+            time.sleep(2.0)
+
+    return Response(event_stream(), mimetype="text/event-stream")
 
 @app.route('/admin/api/logs.csv', methods=['GET'])
 @admin_required("viewer")

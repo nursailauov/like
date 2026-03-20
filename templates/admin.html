@@ -237,10 +237,10 @@
         <div class="top-actions">
           <input id="filterUid" placeholder="Фильтр UID" style="max-width:180px;">
           <input id="filterServer" placeholder="Фильтр Server" style="max-width:140px;">
-          <button id="refreshLogs" class="btn secondary" type="button" style="max-width:220px;">Обновить логи</button>
+          <button id="applyLogsFilter" class="btn secondary" type="button" style="max-width:220px;">Применить фильтры</button>
           <a id="exportCsv" href="/admin/api/logs.csv?limit=300" style="max-width:220px;text-align:center;">Export CSV</a>
         </div>
-        <canvas id="logsChart" height="90" style="width:100%;margin-top:8px;background:#0b1324;border:1px solid #26344d;border-radius:10px;"></canvas>
+        <p class="muted" style="margin:.4rem 0 0;">Live-лог: обновляется автоматически (SSE).</p>
         <div id="logsTableWrap"></div>
         <pre id="logsOut" style="display:none;">Загрузка...</pre>
       </section>
@@ -252,8 +252,8 @@
         const logsTableWrap = document.getElementById('logsTableWrap');
         const filterUid = document.getElementById('filterUid');
         const filterServer = document.getElementById('filterServer');
-        const logsChart = document.getElementById('logsChart');
         const configOut = document.getElementById('configOut');
+        let logsEventSource = null;
         const cfgInputs = {
           MAX_CONCURRENT_LIKE_REQUESTS: document.getElementById('cfgMaxConc'),
           MIN_CONCURRENT_LIKE_REQUESTS: document.getElementById('cfgMinConc'),
@@ -332,20 +332,9 @@
             </table>
           `;
 
-          const ctx = logsChart.getContext('2d');
-          ctx.clearRect(0, 0, logsChart.width, logsChart.height);
-          const logs = payload.logs || [];
-          const maxVal = Math.max(1, ...logs.map(l => Number(l.likes_increment || 0)));
-          const step = logs.length ? logsChart.width / logs.length : logsChart.width;
-          logs.slice(0, 50).forEach((log, i) => {
-            const val = Number(log.likes_increment || 0);
-            const h = Math.max(2, (val / maxVal) * (logsChart.height - 10));
-            ctx.fillStyle = val >= 20 ? '#2f8fff' : '#ff1717';
-            ctx.fillRect(i * step, logsChart.height - h, Math.max(3, step - 2), h);
-          });
         }
 
-        async function loadLogs() {
+        async function loadLogsOnce() {
           const uid = encodeURIComponent(filterUid.value || '');
           const server = encodeURIComponent(filterServer.value || '');
           const query = `/admin/api/logs?limit=120&uid=${uid}&server=${server}`;
@@ -356,8 +345,40 @@
           document.getElementById('exportCsv').href = `/admin/api/logs.csv?limit=300&uid=${uid}&server=${server}`;
         }
 
+        function startLiveLogs() {
+          const uid = encodeURIComponent(filterUid.value || '');
+          const server = encodeURIComponent(filterServer.value || '');
+          const streamUrl = `/admin/api/logs/stream?limit=120&uid=${uid}&server=${server}`;
+          document.getElementById('exportCsv').href = `/admin/api/logs.csv?limit=300&uid=${uid}&server=${server}`;
+
+          if (logsEventSource) {
+            logsEventSource.close();
+          }
+          logsEventSource = new EventSource(streamUrl);
+
+          logsEventSource.addEventListener('logs', (event) => {
+            try {
+              const payload = JSON.parse(event.data || '{}');
+              renderLogsPretty(payload);
+              logsOut.textContent = JSON.stringify(payload, null, 2);
+            } catch (e) {
+              logsOut.textContent = 'SSE parse error: ' + String(e);
+            }
+          });
+
+          logsEventSource.onerror = () => {
+            logsOut.textContent = 'Live stream disconnected. Reconnecting...';
+          };
+        }
+        window.addEventListener('beforeunload', () => {
+          if (logsEventSource) logsEventSource.close();
+        });
+
         document.getElementById('refreshStats').addEventListener('click', loadStats);
-        document.getElementById('refreshLogs').addEventListener('click', loadLogs);
+        document.getElementById('applyLogsFilter').addEventListener('click', () => {
+          startLiveLogs();
+          loadLogsOnce();
+        });
 
         document.getElementById('applyConfig').addEventListener('click', async () => {
           try {
@@ -388,7 +409,8 @@
         document.getElementById('presetTurbo').addEventListener('click', () => applyPreset('turbo'));
 
         loadStats();
-        loadLogs();
+        loadLogsOnce();
+        startLiveLogs();
       </script>
     {% endif %}
   </main>
