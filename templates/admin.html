@@ -271,20 +271,36 @@
       gap: 10px;
       flex-wrap: wrap;
     }
-    .config-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      margin-top: 10px;
+    .hint {
+      margin-top: 8px;
+      color: #8ea4cb;
+      font-size: .82rem;
+      border: 1px solid #2b3b59;
+      border-radius: 10px;
+      background: #0d1729;
+      padding: 8px 10px;
     }
-    .conf-item {
-      border: 1px solid #2a3957;
-      border-radius: 12px;
-      background: #0c1527;
-      padding: 10px;
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: .72rem;
+      border: 1px solid #2f3f5e;
+      background: #0d1729;
+      color: #a9bce0;
+      font-weight: 700;
     }
-    .conf-k { color: #8aa0c7; font-size: .72rem; text-transform: uppercase; }
-    .conf-v { margin-top: 6px; font-size: 1rem; font-weight: 900; color: #f0f5ff; }
+    .chip.good {
+      border-color: #20613a;
+      color: #9adcb3;
+      background: #0b1a13;
+    }
+    .chip.bad {
+      border-color: #6b2a2a;
+      color: #ffb0b0;
+      background: #1d1114;
+    }
 
     .error { color:#ff8f8f; margin-top:8px; }
     ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -294,7 +310,6 @@
     @media (max-width: 780px) {
       .grid { grid-template-columns: 1fr; }
       .metrics { grid-template-columns: 1fr 1fr; }
-      .config-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -345,8 +360,8 @@
         <div class="panel">
           <h3 class="title">📊 Runtime Stats</h3>
           <button id="refreshStats" class="btn secondary" type="button">Обновить статистику</button>
+          <div class="hint">Тут показаны только KPI. Параметры меняются в отдельном блоке <b>Runtime Config</b>.</div>
           <div id="statsCards" class="metrics"></div>
-          <div id="configTable"></div>
         </div>
 
         <div class="panel">
@@ -390,7 +405,6 @@
 
       <script>
         const statsCards = document.getElementById('statsCards');
-        const configTable = document.getElementById('configTable');
         const logsOut = document.getElementById('logsOut');
         const logsTableWrap = document.getElementById('logsTableWrap');
         const filterUid = document.getElementById('filterUid');
@@ -450,13 +464,6 @@
 
           const conf = data.config || {};
           fillConfigInputs(conf);
-          const cards = Object.entries(conf).map(([k, v]) => `
-            <div class="conf-item">
-              <div class="conf-k">${k}</div>
-              <div class="conf-v">${v}</div>
-            </div>
-          `).join('');
-          configTable.innerHTML = `<div class="config-grid">${cards}</div>`;
         }
 
         async function loadStats() {
@@ -473,8 +480,8 @@
               <td>${log.uid || '-'}</td>
               <td>${log.server || '-'}</td>
               <td>${log.tokens_used || 0}</td>
-              <td>${log.likes_increment || 0}</td>
-              <td>${log.response_ms || 0}ms</td>
+              <td><span class="chip ${(Number(log.likes_increment || 0) > 0) ? 'good' : 'bad'}">${log.likes_increment || 0}</span></td>
+              <td><span class="chip">${log.response_ms || 0}ms</span></td>
             </tr>
           `).join('');
 
