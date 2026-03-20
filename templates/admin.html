@@ -28,6 +28,34 @@
     }
 
     .shell { width: min(980px, 100%); margin: 40px auto 0; }
+    .sticky-head {
+      position: sticky;
+      top: 10px;
+      z-index: 20;
+      backdrop-filter: blur(6px);
+      background: rgba(8, 12, 20, 0.78);
+      border: 1px solid #22304a;
+      border-radius: 14px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .badges { display:flex; gap:8px; flex-wrap:wrap; }
+    .pill {
+      border: 1px solid #2b3a56;
+      background: #0b1424;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: .76rem;
+      color: #bbcae6;
+      font-weight: 700;
+    }
+    .pill.good { border-color: #1f6a3f; color: #9de2b8; background: #0b1a13; }
+    .pill.warn { border-color: #7a5d1e; color: #ffd988; background: #1f190c; }
 
     .brand { text-align: center; margin-bottom: 16px; }
     .brand h1 {
@@ -93,6 +121,7 @@
     }
 
     .btn.secondary { background: linear-gradient(90deg, #2c8fff, #1a66c7); }
+    .btn:hover { filter: brightness(1.08); transform: translateY(-1px); transition: .15s ease; }
 
     .grid {
       display: grid;
@@ -147,6 +176,9 @@
     }
     .table th { background:#101a2e; color:#9fb4d8; text-transform:uppercase; font-size:.72rem; }
     .table td { background:#0b1324; }
+    .table tbody tr:nth-child(even) td { background: #0d1628; }
+    .table tbody tr:hover td { background: #14213a; }
+    .table-wrap { overflow:auto; border-radius: 10px; }
 
     .top-actions {
       display:flex;
@@ -165,6 +197,14 @@
       font-size:.82rem;
       font-weight:700;
     }
+    .log-meta {
+      margin-top: 8px;
+      color: #8ca1c7;
+      font-size: .8rem;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
 
     .error { color:#ff8f8f; margin-top:8px; }
 
@@ -180,6 +220,18 @@
       <h1><span>M222HP</span> Admin</h1>
       <p>System Control • Stats • Logs</p>
     </header>
+    {% if is_admin %}
+      <section class="sticky-head">
+        <div class="badges">
+          <span class="pill">Role: {{ admin_role }}</span>
+          <span class="pill">Theme: Neon Dark</span>
+        </div>
+        <div class="badges">
+          <span class="pill">Logs: Real-time SSE</span>
+          <span class="pill">UX: Updated</span>
+        </div>
+      </section>
+    {% endif %}
 
     {% if not is_admin %}
       <section class="panel" style="max-width:520px;margin:0 auto;">
@@ -198,10 +250,10 @@
         <p class="muted">Админка полностью в стиле основного сайта: тёмный неон + красные акценты. Роль: <b>{{ admin_role }}</b></p>
         <div class="top-actions">
           <a href="/">← Вернуться в Like API</a>
+          <form method="post" action="/admin/logout" style="margin:0;">
+            <button class="btn" type="submit" style="margin:0;max-width:220px;">Выйти из админки</button>
+          </form>
         </div>
-        <form method="post" action="/admin/logout">
-          <button class="btn" type="submit">Выйти из админки</button>
-        </form>
       </section>
 
       <section class="grid">
@@ -238,10 +290,16 @@
           <input id="filterUid" placeholder="Фильтр UID" style="max-width:180px;">
           <input id="filterServer" placeholder="Фильтр Server" style="max-width:140px;">
           <button id="applyLogsFilter" class="btn secondary" type="button" style="max-width:220px;">Применить фильтры</button>
+          <button id="clearLogsFilter" class="btn secondary" type="button" style="max-width:180px;">Сбросить фильтры</button>
           <a id="exportCsv" href="/admin/api/logs.csv?limit=300" style="max-width:220px;text-align:center;">Export CSV</a>
         </div>
         <p class="muted" style="margin:.4rem 0 0;">Live-лог: обновляется автоматически (SSE).</p>
-        <div id="logsTableWrap"></div>
+        <div class="log-meta">
+          <span id="logCount">Записей: 0</span>
+          <span id="logUpdatedAt">Обновлено: —</span>
+          <span id="liveStatus" class="pill warn">Live: connecting…</span>
+        </div>
+        <div id="logsTableWrap" class="table-wrap"></div>
         <pre id="logsOut" style="display:none;">Загрузка...</pre>
       </section>
 
@@ -252,6 +310,9 @@
         const logsTableWrap = document.getElementById('logsTableWrap');
         const filterUid = document.getElementById('filterUid');
         const filterServer = document.getElementById('filterServer');
+        const logCount = document.getElementById('logCount');
+        const logUpdatedAt = document.getElementById('logUpdatedAt');
+        const liveStatus = document.getElementById('liveStatus');
         const configOut = document.getElementById('configOut');
         let logsEventSource = null;
         const cfgInputs = {
@@ -314,6 +375,7 @@
         }
 
         function renderLogsPretty(payload) {
+          const logs = payload.logs || [];
           const rows = (payload.logs || []).map(log => `
             <tr>
               <td>${log.time || '-'}</td>
@@ -331,6 +393,8 @@
               <tbody>${rows || '<tr><td colspan=\"6\">Логи пока пустые</td></tr>'}</tbody>
             </table>
           `;
+          logCount.textContent = `Записей: ${logs.length}`;
+          logUpdatedAt.textContent = `Обновлено: ${new Date().toLocaleTimeString('ru-RU')}`;
 
         }
 
@@ -354,6 +418,8 @@
           if (logsEventSource) {
             logsEventSource.close();
           }
+          liveStatus.textContent = 'Live: connecting…';
+          liveStatus.className = 'pill warn';
           logsEventSource = new EventSource(streamUrl);
 
           logsEventSource.addEventListener('logs', (event) => {
@@ -361,13 +427,19 @@
               const payload = JSON.parse(event.data || '{}');
               renderLogsPretty(payload);
               logsOut.textContent = JSON.stringify(payload, null, 2);
+              liveStatus.textContent = 'Live: connected';
+              liveStatus.className = 'pill good';
             } catch (e) {
               logsOut.textContent = 'SSE parse error: ' + String(e);
+              liveStatus.textContent = 'Live: parse error';
+              liveStatus.className = 'pill warn';
             }
           });
 
           logsEventSource.onerror = () => {
             logsOut.textContent = 'Live stream disconnected. Reconnecting...';
+            liveStatus.textContent = 'Live: reconnecting…';
+            liveStatus.className = 'pill warn';
           };
         }
         window.addEventListener('beforeunload', () => {
@@ -376,6 +448,12 @@
 
         document.getElementById('refreshStats').addEventListener('click', loadStats);
         document.getElementById('applyLogsFilter').addEventListener('click', () => {
+          startLiveLogs();
+          loadLogsOnce();
+        });
+        document.getElementById('clearLogsFilter').addEventListener('click', () => {
+          filterUid.value = '';
+          filterServer.value = '';
           startLiveLogs();
           loadLogsOnce();
         });
