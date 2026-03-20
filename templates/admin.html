@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>M222HP • Admin</title>
+  <title>M222HP • Admin Console</title>
   <style>
     :root {
-      --bg: #050608;
-      --line: #222a36;
-      --red: #ff1717;
-      --red-soft: rgba(255, 20, 20, 0.28);
-      --blue: #2f8fff;
-      --text: #f2f6ff;
-      --muted: #8391ad;
-      --card: linear-gradient(180deg, #0b101c, #090d15);
+      --bg: #060915;
+      --bg-2: #0c1327;
+      --panel: linear-gradient(180deg, #101a33 0%, #0a1224 100%);
+      --line: #2b3a57;
+      --text: #edf3ff;
+      --muted: #90a1c3;
+      --accent: #5a8bff;
+      --accent-2: #7a5cff;
+      --good: #48db9a;
+      --bad: #ff8f9b;
+      --danger: #ff3d5f;
     }
 
     * { box-sizing: border-box; }
@@ -21,367 +24,219 @@
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       color: var(--text);
-      background: radial-gradient(circle at top, #10162a 0%, #06080f 45%, var(--bg) 100%);
-      padding: 24px 14px 42px;
-      position: relative;
-      overflow-x: hidden;
-    }
-    body::before, body::after {
-      content: "";
-      position: fixed;
-      width: 420px;
-      height: 420px;
-      border-radius: 50%;
-      filter: blur(80px);
-      z-index: -1;
-      opacity: .28;
-      pointer-events: none;
-    }
-    body::before {
-      background: #ff1f4b;
-      top: -180px;
-      right: -120px;
-    }
-    body::after {
-      background: #2f8fff;
-      bottom: -170px;
-      left: -120px;
+      font-family: Inter, "Segoe UI", Tahoma, sans-serif;
+      background:
+        radial-gradient(700px 400px at 15% -10%, rgba(122, 92, 255, .25), transparent),
+        radial-gradient(700px 400px at 95% 0%, rgba(90, 139, 255, .25), transparent),
+        linear-gradient(180deg, var(--bg), #04070f 65%);
+      padding: 24px 14px 40px;
     }
 
-    .shell { width: min(980px, 100%); margin: 40px auto 0; }
-    .sticky-head {
-      position: sticky;
-      top: 10px;
-      z-index: 20;
-      backdrop-filter: blur(6px);
-      background: rgba(8, 12, 20, 0.78);
-      border: 1px solid #22304a;
-      border-radius: 14px;
-      padding: 10px 12px;
-      margin-bottom: 12px;
+    .wrap { width: min(1120px, 100%); margin: 0 auto; }
+
+    .hero {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: linear-gradient(135deg, #0f1a33 0%, #0a1224 60%, #0f1830 100%);
+      padding: 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, .35);
+    }
+
+    .hero-top {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
       justify-content: space-between;
+      gap: 10px;
+      align-items: center;
     }
-    .badges { display:flex; gap:8px; flex-wrap:wrap; }
-    .pill {
-      border: 1px solid #2b3a56;
-      background: #0b1424;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: .76rem;
-      color: #bbcae6;
-      font-weight: 700;
-    }
-    .pill.good { border-color: #1f6a3f; color: #9de2b8; background: #0b1a13; }
-    .pill.warn { border-color: #7a5d1e; color: #ffd988; background: #1f190c; }
 
-    .brand { text-align: center; margin-bottom: 16px; }
-    .brand h1 {
+    .title-main {
       margin: 0;
-      font-size: clamp(1.9rem, 4.5vw, 3rem);
+      font-size: clamp(1.4rem, 4vw, 2.1rem);
+      letter-spacing: .5px;
       font-weight: 900;
-      letter-spacing: 0.5px;
       text-transform: uppercase;
     }
-    .brand h1 span { color: var(--red); }
-    .brand p {
-      margin: 8px 0 0;
-      color: #637596;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      font-size: 0.72rem;
-    }
-    .brand .sub {
-      margin-top: 12px;
-      color: #9cb0d4;
-      font-size: .9rem;
-      line-height: 1.45;
-    }
+
+    .title-main span { color: var(--accent); }
+    .sub { margin: 6px 0 0; color: var(--muted); font-size: .9rem; }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
     .panel {
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)) ,
-        var(--card);
-      border: 1px solid #2b3648;
-      border-radius: 22px;
-      padding: 18px;
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,.02) inset,
-        0 14px 36px rgba(0,0,0,.35),
-        0 0 24px rgba(255, 20, 20, 0.09);
-      margin-bottom: 14px;
-      animation: panelIn .24s ease;
-    }
-    @keyframes panelIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      padding: 14px;
+      box-shadow: 0 14px 36px rgba(0,0,0,.28);
     }
 
-    .title {
+    .panel h3 {
       margin: 0 0 10px;
+      font-size: .95rem;
       text-transform: uppercase;
-      font-size: 1rem;
-      letter-spacing: 0.5px;
-      color: var(--red);
-      font-weight: 900;
+      letter-spacing: .5px;
+      color: #b9ccff;
     }
 
-    .muted { color: var(--muted); font-size: .88rem; margin: 0; }
-
-    label { display:block; font-size:.85rem; color:#9ab0d6; margin: 6px 0; }
-
-    input, button, textarea {
-      width: 100%;
-      border-radius: 12px;
-      border: 1px solid #2a3344;
-      background: #0a101b;
-      color: var(--text);
-      padding: 12px;
-      font-size: 0.95rem;
-      outline: none;
-      transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    .hint {
+      margin: 0 0 10px;
+      border: 1px solid #2d3d5a;
+      border-radius: 10px;
+      background: #0c1830;
+      color: #9bb0d7;
+      font-size: .82rem;
+      padding: 8px 10px;
     }
-    input:focus, textarea:focus {
-      border-color: #3b5f96;
-      box-shadow: 0 0 0 3px rgba(47, 143, 255, .16);
-    }
-
-    textarea { min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
     .btn {
       border: 0;
-      margin-top: 8px;
-      text-transform: uppercase;
-      font-weight: 900;
-      letter-spacing: 0.45px;
-      cursor: pointer;
-      color: #fff;
-      background: linear-gradient(90deg, #ff1f1f, #c40000);
-    }
-
-    .btn.secondary { background: linear-gradient(90deg, #2c8fff, #1a66c7); }
-    .btn:hover { filter: brightness(1.08); transform: translateY(-1px); transition: .15s ease; }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    pre {
-      margin: 10px 0 0;
-      background: #09101b;
-      border: 1px solid #293347;
-      border-radius: 10px;
-      color: #d0dbf5;
-      padding: 10px;
-      font-size: 0.82rem;
-      max-height: 340px;
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .metrics {
-      display:grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap:10px;
-      margin-top:10px;
-    }
-    .metrics-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: center;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
-    .progress {
-      height: 8px;
-      border-radius: 999px;
-      background: #121d30;
-      border: 1px solid #2b3a55;
-      overflow: hidden;
-      width: min(280px, 100%);
-    }
-    .progress > span {
-      display: block;
-      height: 100%;
-      background: linear-gradient(90deg, #2f8fff, #44f49f);
-      width: 0%;
-    }
-
-    .metric {
-      border:1px solid #27344f;
-      border-radius:12px;
-      background: linear-gradient(180deg, #101a2e, #0c1424);
-      padding:12px;
-      text-align:left;
-    }
-
-    .metric .k { color:#8ba2cb; font-size:.74rem; text-transform:uppercase; }
-    .metric .v { font-size:1.2rem; font-weight:900; margin-top:4px; }
-    .metric .s { margin-top: 4px; font-size: .75rem; color: #7f93b6; }
-    .metric {
-      box-shadow: 0 10px 24px rgba(6, 11, 21, .35);
-    }
-
-    .table {
-      width:100%;
-      border-collapse: collapse;
-      margin-top:10px;
-      font-size:.84rem;
-      overflow:hidden;
-      border-radius:10px;
-    }
-    .table th, .table td {
-      border:1px solid #26344d;
-      padding:8px;
-      text-align:left;
-    }
-    .table th { background:#101a2e; color:#9fb4d8; text-transform:uppercase; font-size:.72rem; }
-    .table td { background:#0b1324; }
-    .table thead th { position: sticky; top: 0; z-index: 1; }
-    .table tbody tr:nth-child(even) td { background: #0d1628; }
-    .table tbody tr:hover td { background: #14213a; }
-    .table-wrap { overflow:auto; border-radius: 10px; }
-    .empty-state {
-      text-align: center;
-      border: 1px dashed #2e3e5d;
       border-radius: 12px;
-      padding: 18px 12px;
-      color: #8fa3c8;
-      background: #0b1324;
+      padding: 11px 12px;
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: .4px;
+      cursor: pointer;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    }
+    .btn.alt { background: linear-gradient(90deg, #31435f, #27364f); }
+    .btn.red { background: linear-gradient(90deg, #ff4c6a, #d92f54); }
+
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+    a.link {
+      color: #d7e3ff;
+      text-decoration: none;
+      border: 1px solid #2d3d5a;
+      background: #101c36;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 700;
+      font-size: .86rem;
     }
 
-    .top-actions {
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-top:8px;
-      align-items: center;
-    }
-
-    .top-actions a {
-      text-decoration:none;
-      color:#cdd8ef;
-      border:1px solid #29334a;
-      border-radius:10px;
-      padding:9px 12px;
-      background:#0d1321;
-      font-size:.82rem;
-      font-weight:700;
-    }
-    .log-meta {
-      margin-top: 8px;
-      color: #8ca1c7;
-      font-size: .8rem;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .hint {
-      margin-top: 8px;
-      color: #8ea4cb;
-      font-size: .82rem;
-      border: 1px solid #2b3b59;
+    input {
+      width: 100%;
+      border: 1px solid #31405e;
       border-radius: 10px;
-      background: #0d1729;
-      padding: 8px 10px;
+      background: #0b152b;
+      color: var(--text);
+      padding: 10px;
+      outline: none;
     }
-    .chip {
-      display: inline-flex;
-      align-items: center;
+
+    .grid-input { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    label { font-size: .78rem; color: #9db2d6; display: block; margin-bottom: 5px; }
+
+    .kpis { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
+    .kpi {
+      border: 1px solid #304160;
+      border-radius: 12px;
+      background: #0d1730;
+      padding: 10px;
+    }
+    .kpi .k { font-size: .72rem; color: #94a9ce; text-transform: uppercase; }
+    .kpi .v { margin-top: 4px; font-size: 1.15rem; font-weight: 900; }
+    .kpi .s { margin-top: 4px; font-size: .72rem; color: #7990bc; }
+
+    .progress { height: 8px; border-radius: 999px; background: #13213e; border: 1px solid #304160; overflow: hidden; margin-bottom: 10px; }
+    .progress > span { display:block; height:100%; background: linear-gradient(90deg, #48db9a, #5a8bff); }
+
+    .log-head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom: 8px; }
+
+    .badge {
+      border: 1px solid #304160;
       border-radius: 999px;
       padding: 4px 8px;
       font-size: .72rem;
-      border: 1px solid #2f3f5e;
-      background: #0d1729;
-      color: #a9bce0;
+      color: #a9bde2;
+      background: #0f1a33;
       font-weight: 700;
     }
-    .chip.good {
-      border-color: #20613a;
-      color: #9adcb3;
-      background: #0b1a13;
-    }
-    .chip.bad {
-      border-color: #6b2a2a;
-      color: #ffb0b0;
-      background: #1d1114;
+    .badge.good { border-color:#2c7254; color:#93dfbc; background:#0f231c; }
+    .badge.bad { border-color:#6f3643; color:#ffb8c3; background:#26131a; }
+
+    .table-wrap { overflow:auto; border-radius: 10px; }
+    table { width:100%; border-collapse: collapse; font-size:.82rem; }
+    th, td { border:1px solid #2d3d5b; padding:8px; text-align:left; }
+    th { background:#13233f; color:#abc0e7; text-transform: uppercase; font-size:.7rem; }
+    td { background:#0b152b; }
+    tr:nth-child(even) td { background:#0d1a34; }
+
+    .empty {
+      text-align:center;
+      color:#9db2d7;
+      border:1px dashed #334666;
+      border-radius:10px;
+      padding:14px;
+      background:#0d1831;
     }
 
-    .error { color:#ff8f8f; margin-top:8px; }
-    ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-thumb { background: #334867; border-radius: 999px; }
-    ::-webkit-scrollbar-track { background: #0b1220; }
+    .login {
+      width:min(460px, 100%);
+      margin: 70px auto;
+      border:1px solid var(--line);
+      border-radius:20px;
+      background: var(--panel);
+      padding:16px;
+    }
 
-    @media (max-width: 780px) {
-      .grid { grid-template-columns: 1fr; }
-      .metrics { grid-template-columns: 1fr 1fr; }
+    @media (max-width: 900px) {
+      .row { grid-template-columns: 1fr; }
+      .kpis { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 560px) {
+      .kpis, .grid-input { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <header class="brand">
-      <h1><span>M222HP</span> Admin</h1>
-      <p>System Control • Stats • Logs</p>
-      <div class="sub">Красивый тёмный дашборд для быстрого контроля, диагностики и realtime-мониторинга.</div>
-    </header>
-    {% if is_admin %}
-      <section class="sticky-head">
-        <div class="badges">
-          <span class="pill">Role: {{ admin_role }}</span>
-          <span class="pill">Theme: Neon Dark</span>
-        </div>
-        <div class="badges">
-          <span class="pill">Logs: Real-time SSE</span>
-          <span class="pill">UX: Updated</span>
-        </div>
-      </section>
-    {% endif %}
-
+  <main class="wrap">
     {% if not is_admin %}
-      <section class="panel" style="max-width:520px;margin:0 auto;">
-        <h2 class="title">🔐 Admin Login</h2>
+      <section class="login">
+        <h3 style="margin:0 0 8px;">🔐 Admin Login</h3>
+        <p class="sub" style="margin:0 0 10px;">Введи спец пароль для доступа к админ панели.</p>
         <form method="post" action="/admin">
-          <label>Спец админ пароль</label>
+          <label>Пароль</label>
           <input type="password" name="password" placeholder="Введите пароль" required>
-          <button class="btn" type="submit">Войти в панель</button>
-          {% if error %}<div class="error">{{ error }}</div>{% endif %}
+          <button class="btn" type="submit" style="margin-top:10px;width:100%;">Войти</button>
+          {% if error %}<div style="margin-top:8px;color:#ffb8c3;">{{ error }}</div>{% endif %}
         </form>
-        <p class="muted" style="margin-top:10px;">Пароль берётся из переменной окружения <code>ADMIN_PASSWORD</code>.</p>
       </section>
     {% else %}
-      <section class="panel">
-        <h2 class="title">⚙️ Управление</h2>
-        <p class="muted">Админка полностью в стиле основного сайта: тёмный неон + красные акценты. Роль: <b>{{ admin_role }}</b></p>
-        <div class="top-actions">
-          <a href="/">← Вернуться в Like API</a>
-          <form method="post" action="/admin/logout" style="margin:0;">
-            <button class="btn" type="submit" style="margin:0;max-width:220px;">Выйти из админки</button>
-          </form>
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <h1 class="title-main"><span>M222HP</span> Admin Console</h1>
+            <p class="sub">Полностью обновлённый интерфейс: быстрее ориентироваться в статистике, конфиге и логах.</p>
+          </div>
+          <div class="actions">
+            <a class="link" href="/">← Вернуться в Like API</a>
+            <form method="post" action="/admin/logout" style="margin:0;">
+              <button class="btn red" type="submit">Выйти</button>
+            </form>
+          </div>
         </div>
       </section>
 
-      <section class="grid">
+      <section class="row">
         <div class="panel">
-          <h3 class="title">📊 Runtime Stats</h3>
-          <button id="refreshStats" class="btn secondary" type="button">Обновить статистику</button>
-          <div class="hint">Тут показаны только KPI. Параметры меняются в отдельном блоке <b>Runtime Config</b>.</div>
-          <div id="statsCards" class="metrics"></div>
+          <h3>📊 Runtime Stats</h3>
+          <div class="actions" style="margin-bottom:8px;">
+            <button id="refreshStats" class="btn alt" type="button">Обновить статистику</button>
+            <span class="badge">Role: {{ admin_role }}</span>
+          </div>
+          <div class="hint">KPI без дублирования конфига — только самое важное.</div>
+          <div class="progress"><span id="successBar" style="width:0%"></span></div>
+          <div id="statsCards" class="kpis"></div>
         </div>
 
         <div class="panel">
-          <h3 class="title">🧩 Runtime Config</h3>
-          <div class="hint">Меняй значения и применяй сразу без перезапуска сервера.</div>
-          <div class="grid" style="grid-template-columns:1fr 1fr;">
+          <h3>🧩 Runtime Config</h3>
+          <div class="hint">Параметры применяются сразу, без рестарта.</div>
+          <div class="grid-input">
             <div><label>MAX_CONCURRENT_LIKE_REQUESTS</label><input id="cfgMaxConc" type="number" min="1" max="200"></div>
             <div><label>MIN_CONCURRENT_LIKE_REQUESTS</label><input id="cfgMinConc" type="number" min="1" max="200"></div>
             <div><label>LIKE_REQUEST_RETRIES</label><input id="cfgRetries" type="number" min="1" max="10"></div>
@@ -389,30 +244,29 @@
             <div><label>PROFILE_RECHECK_ATTEMPTS</label><input id="cfgRechecks" type="number" min="1" max="10"></div>
             <div><label>PROFILE_RECHECK_DELAY_SECONDS</label><input id="cfgDelay" type="number" min="0.2" max="5" step="0.1"></div>
           </div>
-          <div class="top-actions">
-            <button id="presetSafe" class="btn secondary" type="button" style="max-width:220px;">Preset SAFE</button>
-            <button id="presetBalanced" class="btn secondary" type="button" style="max-width:220px;">Preset BALANCED</button>
-            <button id="presetTurbo" class="btn secondary" type="button" style="max-width:220px;">Preset TURBO</button>
+          <div class="actions" style="margin-top:8px;">
+            <button id="presetSafe" class="btn alt" type="button">Preset SAFE</button>
+            <button id="presetBalanced" class="btn alt" type="button">Preset BALANCED</button>
+            <button id="presetTurbo" class="btn alt" type="button">Preset TURBO</button>
+            <button id="applyConfig" class="btn" type="button">Применить конфиг</button>
           </div>
-          <button id="applyConfig" class="btn" type="button">Применить конфиг</button>
           <pre id="configOut" style="display:none;">-</pre>
         </div>
       </section>
 
-      <section class="panel">
-        <h3 class="title">📝 Request Logs</h3>
-        <div class="top-actions">
+      <section class="panel" style="margin-top:12px;">
+        <h3>📝 Request Logs</h3>
+        <div class="log-head">
           <input id="filterUid" placeholder="Фильтр UID" style="max-width:180px;">
-          <input id="filterServer" placeholder="Фильтр Server" style="max-width:140px;">
-          <button id="applyLogsFilter" class="btn secondary" type="button" style="max-width:220px;">Применить фильтры</button>
-          <button id="clearLogsFilter" class="btn secondary" type="button" style="max-width:180px;">Сбросить фильтры</button>
-          <a id="exportCsv" href="/admin/api/logs.csv?limit=300" style="max-width:220px;text-align:center;">Export CSV</a>
+          <input id="filterServer" placeholder="Фильтр Server" style="max-width:150px;">
+          <button id="applyLogsFilter" class="btn alt" type="button">Применить фильтры</button>
+          <button id="clearLogsFilter" class="btn alt" type="button">Сбросить</button>
+          <a id="exportCsv" class="link" href="/admin/api/logs.csv?limit=300">Export CSV</a>
         </div>
-        <p class="muted" style="margin:.4rem 0 0;">Live-лог: обновляется автоматически (SSE).</p>
-        <div class="log-meta">
-          <span id="logCount">Записей: 0</span>
-          <span id="logUpdatedAt">Обновлено: —</span>
-          <span id="liveStatus" class="pill warn">Live: connecting…</span>
+        <div class="log-head">
+          <span id="logCount" class="badge">Записей: 0</span>
+          <span id="logUpdatedAt" class="badge">Обновлено: —</span>
+          <span id="liveStatus" class="badge">Live: connecting…</span>
         </div>
         <div id="logsTableWrap" class="table-wrap"></div>
         <pre id="logsOut" style="display:none;">Загрузка...</pre>
@@ -428,7 +282,9 @@
         const logUpdatedAt = document.getElementById('logUpdatedAt');
         const liveStatus = document.getElementById('liveStatus');
         const configOut = document.getElementById('configOut');
+        const successBar = document.getElementById('successBar');
         let logsEventSource = null;
+
         const cfgInputs = {
           MAX_CONCURRENT_LIKE_REQUESTS: document.getElementById('cfgMaxConc'),
           MIN_CONCURRENT_LIKE_REQUESTS: document.getElementById('cfgMinConc'),
@@ -439,8 +295,7 @@
         };
 
         function formatNum(v) {
-          const n = Number(v || 0);
-          return n.toLocaleString('ru-RU');
+          return Number(v || 0).toLocaleString('ru-RU');
         }
 
         function fillConfigInputs(conf) {
@@ -463,22 +318,16 @@
 
         function renderStatsPretty(data) {
           const successRate = Math.max(0, Math.min(100, Number(data.success_rate_percent || 0)));
+          successBar.style.width = `${successRate}%`;
           statsCards.innerHTML = `
-            <div class="metrics-head">
-              <span class="pill">Live KPI</span>
-              <div class="progress"><span style="width:${successRate}%"></span></div>
-              <span class="pill good">Success ${formatNum(successRate)}%</span>
-            </div>
-            <div class="metric"><div class="k">🚦 Запросы всего</div><div class="v">${formatNum(data.total_requests)}</div><div class="s">Все обращения к /like</div></div>
-            <div class="metric"><div class="k">✅ Успешные</div><div class="v">${formatNum(data.success_requests)}</div><div class="s">Прирост лайков > 0</div></div>
-            <div class="metric"><div class="k">❌ Ошибки</div><div class="v">${formatNum(data.failed_requests)}</div><div class="s">Без прироста лайков</div></div>
-            <div class="metric"><div class="k">📈 Успех %</div><div class="v">${formatNum(data.success_rate_percent)}%</div><div class="s">Качество текущего режима</div></div>
-            <div class="metric"><div class="k">🗂 Записей логов</div><div class="v">${formatNum(data.log_entries)}</div><div class="s">Хранится в истории</div></div>
-            <div class="metric"><div class="k">🔁 Ретраи</div><div class="v">${formatNum(data.config?.LIKE_REQUEST_RETRIES)}</div><div class="s">Текущее значение retries</div></div>
+            <div class="kpi"><div class="k">🚦 Запросы всего</div><div class="v">${formatNum(data.total_requests)}</div><div class="s">Все обращения</div></div>
+            <div class="kpi"><div class="k">✅ Успешные</div><div class="v">${formatNum(data.success_requests)}</div><div class="s">Likes > 0</div></div>
+            <div class="kpi"><div class="k">❌ Ошибки</div><div class="v">${formatNum(data.failed_requests)}</div><div class="s">Likes = 0</div></div>
+            <div class="kpi"><div class="k">📈 Успех %</div><div class="v">${formatNum(data.success_rate_percent)}%</div><div class="s">Эффективность</div></div>
+            <div class="kpi"><div class="k">🗂 Логи</div><div class="v">${formatNum(data.log_entries)}</div><div class="s">Записей в истории</div></div>
+            <div class="kpi"><div class="k">🔁 Ретраи</div><div class="v">${formatNum(data.config?.LIKE_REQUEST_RETRIES)}</div><div class="s">Текущий retry</div></div>
           `;
-
-          const conf = data.config || {};
-          fillConfigInputs(conf);
+          fillConfigInputs(data.config || {});
         }
 
         async function loadStats() {
@@ -489,26 +338,25 @@
 
         function renderLogsPretty(payload) {
           const logs = payload.logs || [];
-          const rows = (payload.logs || []).map(log => `
+          const rows = logs.map(log => `
             <tr>
               <td>${log.time || '-'}</td>
               <td>${log.uid || '-'}</td>
               <td>${log.server || '-'}</td>
               <td>${log.tokens_used || 0}</td>
-              <td><span class="chip ${(Number(log.likes_increment || 0) > 0) ? 'good' : 'bad'}">${log.likes_increment || 0}</span></td>
-              <td><span class="chip">${log.response_ms || 0}ms</span></td>
+              <td><span class="badge ${(Number(log.likes_increment || 0) > 0) ? 'good' : 'bad'}">${log.likes_increment || 0}</span></td>
+              <td><span class="badge">${log.response_ms || 0}ms</span></td>
             </tr>
           `).join('');
 
           logsTableWrap.innerHTML = `
-            <table class="table">
+            <table>
               <thead><tr><th>Time</th><th>UID</th><th>Server</th><th>Tokens</th><th>+Likes</th><th>Latency</th></tr></thead>
-              <tbody>${rows || '<tr><td colspan=\"6\"><div class=\"empty-state\">Логи пока пустые — отправь запрос в LIKE API, и запись появится автоматически.</div></td></tr>'}</tbody>
+              <tbody>${rows || '<tr><td colspan="6"><div class="empty">Логи пока пустые — отправь запрос из LIKE API.</div></td></tr>'}</tbody>
             </table>
           `;
           logCount.textContent = `Записей: ${logs.length}`;
           logUpdatedAt.textContent = `Обновлено: ${new Date().toLocaleTimeString('ru-RU')}`;
-
         }
 
         async function loadLogsOnce() {
@@ -528,11 +376,9 @@
           const streamUrl = `/admin/api/logs/stream?limit=120&uid=${uid}&server=${server}`;
           document.getElementById('exportCsv').href = `/admin/api/logs.csv?limit=300&uid=${uid}&server=${server}`;
 
-          if (logsEventSource) {
-            logsEventSource.close();
-          }
+          if (logsEventSource) logsEventSource.close();
           liveStatus.textContent = 'Live: connecting…';
-          liveStatus.className = 'pill warn';
+          liveStatus.className = 'badge';
           logsEventSource = new EventSource(streamUrl);
 
           logsEventSource.addEventListener('logs', (event) => {
@@ -541,20 +387,21 @@
               renderLogsPretty(payload);
               logsOut.textContent = JSON.stringify(payload, null, 2);
               liveStatus.textContent = 'Live: connected';
-              liveStatus.className = 'pill good';
+              liveStatus.className = 'badge good';
             } catch (e) {
               logsOut.textContent = 'SSE parse error: ' + String(e);
               liveStatus.textContent = 'Live: parse error';
-              liveStatus.className = 'pill warn';
+              liveStatus.className = 'badge bad';
             }
           });
 
           logsEventSource.onerror = () => {
             logsOut.textContent = 'Live stream disconnected. Reconnecting...';
             liveStatus.textContent = 'Live: reconnecting…';
-            liveStatus.className = 'pill warn';
+            liveStatus.className = 'badge';
           };
         }
+
         window.addEventListener('beforeunload', () => {
           if (logsEventSource) logsEventSource.close();
         });
