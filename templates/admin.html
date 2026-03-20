@@ -188,6 +188,28 @@
       gap:10px;
       margin-top:10px;
     }
+    .metrics-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .progress {
+      height: 8px;
+      border-radius: 999px;
+      background: #121d30;
+      border: 1px solid #2b3a55;
+      overflow: hidden;
+      width: min(280px, 100%);
+    }
+    .progress > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #2f8fff, #44f49f);
+      width: 0%;
+    }
 
     .metric {
       border:1px solid #27344f;
@@ -249,6 +271,20 @@
       gap: 10px;
       flex-wrap: wrap;
     }
+    .config-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .conf-item {
+      border: 1px solid #2a3957;
+      border-radius: 12px;
+      background: #0c1527;
+      padding: 10px;
+    }
+    .conf-k { color: #8aa0c7; font-size: .72rem; text-transform: uppercase; }
+    .conf-v { margin-top: 6px; font-size: 1rem; font-weight: 900; color: #f0f5ff; }
 
     .error { color:#ff8f8f; margin-top:8px; }
     ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -258,6 +294,7 @@
     @media (max-width: 780px) {
       .grid { grid-template-columns: 1fr; }
       .metrics { grid-template-columns: 1fr 1fr; }
+      .config-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -396,7 +433,13 @@
         }
 
         function renderStatsPretty(data) {
+          const successRate = Math.max(0, Math.min(100, Number(data.success_rate_percent || 0)));
           statsCards.innerHTML = `
+            <div class="metrics-head">
+              <span class="pill">Live KPI</span>
+              <div class="progress"><span style="width:${successRate}%"></span></div>
+              <span class="pill good">Success ${formatNum(successRate)}%</span>
+            </div>
             <div class="metric"><div class="k">Запросы всего</div><div class="v">${formatNum(data.total_requests)}</div></div>
             <div class="metric"><div class="k">Успешные</div><div class="v">${formatNum(data.success_requests)}</div></div>
             <div class="metric"><div class="k">Ошибки</div><div class="v">${formatNum(data.failed_requests)}</div></div>
@@ -407,13 +450,13 @@
 
           const conf = data.config || {};
           fillConfigInputs(conf);
-          const rows = Object.entries(conf).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
-          configTable.innerHTML = `
-            <table class="table">
-              <thead><tr><th>Параметр</th><th>Значение</th></tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          `;
+          const cards = Object.entries(conf).map(([k, v]) => `
+            <div class="conf-item">
+              <div class="conf-k">${k}</div>
+              <div class="conf-v">${v}</div>
+            </div>
+          `).join('');
+          configTable.innerHTML = `<div class="config-grid">${cards}</div>`;
         }
 
         async function loadStats() {

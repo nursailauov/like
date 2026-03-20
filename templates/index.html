@@ -122,6 +122,26 @@
       box-shadow: 0 0 28px rgba(255, 0, 0, 0.12);
       margin-bottom: 14px;
     }
+    .panel.like-hero {
+      background:
+        radial-gradient(circle at 8% 0%, rgba(255, 30, 30, .18), transparent 32%),
+        radial-gradient(circle at 92% 100%, rgba(47, 143, 255, .18), transparent 36%),
+        linear-gradient(180deg, #0b101c, #090d15);
+      border: 1px solid #2a3750;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.02) inset,
+        0 14px 34px rgba(0,0,0,.35),
+        0 0 28px rgba(255, 0, 0, 0.12);
+    }
+    .like-note {
+      margin: 0 0 12px;
+      color: #9fb4d8;
+      font-size: .86rem;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #2b3b59;
+      background: #0d1729;
+    }
 
     .hidden { display: none; }
 
@@ -344,8 +364,9 @@
     </section>
     <p style="margin:0 0 12px;color:#7f8fb3;font-size:.78rem;">Admin panel: <b>/admin</b> (вход по спец-паролю).</p>
 
-    <section id="likePanel" class="panel">
+    <section id="likePanel" class="panel like-hero">
       <h2 class="title">🚀 LIKE API</h2>
+      <p class="like-note">Усиленный режим: красивый фон + быстрый запуск лайков с диагностикой после отправки.</p>
       <form id="likeForm" class="fields">
         <input id="uid" type="number" placeholder="YOUR UID" required>
         <select id="server_name" required>
