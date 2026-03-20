@@ -108,13 +108,18 @@
         linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)) ,
         var(--card);
       border: 1px solid #2b3648;
-      border-radius: 18px;
-      padding: 16px;
+      border-radius: 22px;
+      padding: 18px;
       box-shadow:
         0 0 0 1px rgba(255,255,255,.02) inset,
         0 14px 36px rgba(0,0,0,.35),
         0 0 24px rgba(255, 20, 20, 0.09);
       margin-bottom: 14px;
+      animation: panelIn .24s ease;
+    }
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .title {
@@ -215,12 +220,13 @@
       border:1px solid #27344f;
       border-radius:12px;
       background: linear-gradient(180deg, #101a2e, #0c1424);
-      padding:10px;
-      text-align:center;
+      padding:12px;
+      text-align:left;
     }
 
     .metric .k { color:#8ba2cb; font-size:.74rem; text-transform:uppercase; }
     .metric .v { font-size:1.2rem; font-weight:900; margin-top:4px; }
+    .metric .s { margin-top: 4px; font-size: .75rem; color: #7f93b6; }
     .metric {
       box-shadow: 0 10px 24px rgba(6, 11, 21, .35);
     }
@@ -244,6 +250,14 @@
     .table tbody tr:nth-child(even) td { background: #0d1628; }
     .table tbody tr:hover td { background: #14213a; }
     .table-wrap { overflow:auto; border-radius: 10px; }
+    .empty-state {
+      text-align: center;
+      border: 1px dashed #2e3e5d;
+      border-radius: 12px;
+      padding: 18px 12px;
+      color: #8fa3c8;
+      background: #0b1324;
+    }
 
     .top-actions {
       display:flex;
@@ -366,6 +380,7 @@
 
         <div class="panel">
           <h3 class="title">🧩 Runtime Config</h3>
+          <div class="hint">Меняй значения и применяй сразу без перезапуска сервера.</div>
           <div class="grid" style="grid-template-columns:1fr 1fr;">
             <div><label>MAX_CONCURRENT_LIKE_REQUESTS</label><input id="cfgMaxConc" type="number" min="1" max="200"></div>
             <div><label>MIN_CONCURRENT_LIKE_REQUESTS</label><input id="cfgMinConc" type="number" min="1" max="200"></div>
@@ -454,12 +469,12 @@
               <div class="progress"><span style="width:${successRate}%"></span></div>
               <span class="pill good">Success ${formatNum(successRate)}%</span>
             </div>
-            <div class="metric"><div class="k">Запросы всего</div><div class="v">${formatNum(data.total_requests)}</div></div>
-            <div class="metric"><div class="k">Успешные</div><div class="v">${formatNum(data.success_requests)}</div></div>
-            <div class="metric"><div class="k">Ошибки</div><div class="v">${formatNum(data.failed_requests)}</div></div>
-            <div class="metric"><div class="k">Успех %</div><div class="v">${formatNum(data.success_rate_percent)}%</div></div>
-            <div class="metric"><div class="k">Записей логов</div><div class="v">${formatNum(data.log_entries)}</div></div>
-            <div class="metric"><div class="k">Ретраи</div><div class="v">${formatNum(data.config?.LIKE_REQUEST_RETRIES)}</div></div>
+            <div class="metric"><div class="k">🚦 Запросы всего</div><div class="v">${formatNum(data.total_requests)}</div><div class="s">Все обращения к /like</div></div>
+            <div class="metric"><div class="k">✅ Успешные</div><div class="v">${formatNum(data.success_requests)}</div><div class="s">Прирост лайков > 0</div></div>
+            <div class="metric"><div class="k">❌ Ошибки</div><div class="v">${formatNum(data.failed_requests)}</div><div class="s">Без прироста лайков</div></div>
+            <div class="metric"><div class="k">📈 Успех %</div><div class="v">${formatNum(data.success_rate_percent)}%</div><div class="s">Качество текущего режима</div></div>
+            <div class="metric"><div class="k">🗂 Записей логов</div><div class="v">${formatNum(data.log_entries)}</div><div class="s">Хранится в истории</div></div>
+            <div class="metric"><div class="k">🔁 Ретраи</div><div class="v">${formatNum(data.config?.LIKE_REQUEST_RETRIES)}</div><div class="s">Текущее значение retries</div></div>
           `;
 
           const conf = data.config || {};
@@ -488,7 +503,7 @@
           logsTableWrap.innerHTML = `
             <table class="table">
               <thead><tr><th>Time</th><th>UID</th><th>Server</th><th>Tokens</th><th>+Likes</th><th>Latency</th></tr></thead>
-              <tbody>${rows || '<tr><td colspan=\"6\">Логи пока пустые</td></tr>'}</tbody>
+              <tbody>${rows || '<tr><td colspan=\"6\"><div class=\"empty-state\">Логи пока пустые — отправь запрос в LIKE API, и запись появится автоматически.</div></td></tr>'}</tbody>
             </table>
           `;
           logCount.textContent = `Записей: ${logs.length}`;
