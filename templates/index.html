@@ -28,20 +28,156 @@
       padding: 24px 14px 42px;
     }
 
-    .music-toggle {
+    .player-wrap {
       position: fixed;
-      top: 16px;
       right: 14px;
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      border: 2px solid var(--red);
-      background: #0c111d;
-      color: var(--red);
+      top: 16px;
+      width: min(360px, calc(100vw - 28px));
+      z-index: 25;
+    }
+
+    .player {
+      border: 1px solid #2f3850;
+      background: linear-gradient(160deg, rgba(9, 13, 22, 0.97), rgba(11, 16, 29, 0.97));
+      border-radius: 16px;
+      box-shadow: 0 0 24px rgba(0, 0, 0, 0.38);
+      overflow: hidden;
+      transition: max-height .25s ease, opacity .25s ease;
+      max-height: 520px;
+      opacity: 1;
+    }
+
+    .player.collapsed {
+      max-height: 54px;
+    }
+
+    .player-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      background: linear-gradient(90deg, #161f34, #10192a);
+      border-bottom: 1px solid #2a3245;
+    }
+
+    .player-title {
+      margin: 0;
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #9eb2d8;
+      font-weight: 800;
+    }
+
+    .player-mini-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      border: 1px solid #2b3448;
+      color: #cfdbf8;
+      background: #0d1422;
       cursor: pointer;
-      font-size: 1rem;
-      box-shadow: 0 0 18px var(--red-soft);
-      z-index: 20;
+      font-weight: 700;
+    }
+
+    .player-body {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .track-now {
+      border-radius: 12px;
+      border: 1px solid #273044;
+      padding: 10px;
+      background: #0c1320;
+    }
+
+    .track-name {
+      margin: 0;
+      font-size: .95rem;
+      font-weight: 800;
+      color: #f0f5ff;
+    }
+
+    .track-artist {
+      margin: 4px 0 0;
+      color: #7f93b5;
+      font-size: .83rem;
+    }
+
+    .progress-wrap {
+      display: grid;
+      gap: 5px;
+    }
+
+    .time-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: .75rem;
+      color: #7a8bab;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--red);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .ctl {
+      border-radius: 10px;
+      border: 1px solid #2a3448;
+      background: #0d1422;
+      color: #dde8ff;
+      height: 38px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .ctl.play {
+      background: linear-gradient(90deg, #ff2020, #cb0404);
+      border-color: #d60a0a;
+    }
+
+    .playlist {
+      border: 1px solid #273046;
+      border-radius: 12px;
+      max-height: 190px;
+      overflow: auto;
+      background: rgba(6, 10, 18, 0.85);
+    }
+
+    .track-item {
+      width: 100%;
+      border: 0;
+      text-align: left;
+      display: block;
+      padding: 10px;
+      background: transparent;
+      color: #c8d5f1;
+      border-bottom: 1px solid #20293f;
+      cursor: pointer;
+    }
+
+    .track-item:last-child {
+      border-bottom: 0;
+    }
+
+    .track-item.active {
+      background: linear-gradient(90deg, rgba(255, 35, 35, 0.2), rgba(29, 53, 94, 0.12));
+      color: #fff;
+    }
+
+    .track-item small {
+      display: block;
+      color: #7990b7;
+      margin-top: 2px;
     }
 
     .shell {
@@ -300,7 +436,7 @@
     }
 
     @media (max-width: 560px) {
-      .shell { margin-top: 64px; }
+      .shell { margin-top: 78px; }
       .panel { padding: 14px; border-radius: 16px; }
       .tabs { border-radius: 16px; }
       .tab { font-size: .72rem; padding: 11px 8px; }
@@ -309,12 +445,47 @@
       .social-profile { grid-template-columns: 1fr; text-align: center; }
       .social-avatar-wrap { margin: 0 auto; }
       .avatar { margin: 0 auto; }
-      .music-toggle { width: 44px; height: 44px; }
+      .player-wrap { right: 8px; top: 8px; width: calc(100vw - 16px); }
     }
   </style>
 </head>
 <body>
-  <button id="musicBtn" class="music-toggle" aria-label="вкл/выкл музыку">▶</button>
+  <aside class="player-wrap" aria-label="Музыкальный плеер">
+    <div id="player" class="player">
+      <div class="player-head">
+        <p class="player-title">Music Player</p>
+        <button id="collapsePlayer" class="player-mini-btn" type="button" aria-label="Свернуть плеер">−</button>
+      </div>
+      <div class="player-body">
+        <div class="track-now">
+          <p id="trackName" class="track-name">Трек не выбран</p>
+          <p id="trackArtist" class="track-artist">Нажми Play</p>
+        </div>
+
+        <div class="progress-wrap">
+          <input id="seekBar" type="range" min="0" max="100" value="0" step="0.1" />
+          <div class="time-row">
+            <span id="currentTime">00:00</span>
+            <span id="totalTime">00:00</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="shuffleBtn" class="ctl" type="button" title="Случайный порядок">🔀</button>
+          <button id="prevBtn" class="ctl" type="button" title="Предыдущий">⏮</button>
+          <button id="playBtn" class="ctl play" type="button" title="Play/Pause">▶</button>
+          <button id="nextBtn" class="ctl" type="button" title="Следующий">⏭</button>
+          <button id="repeatBtn" class="ctl" type="button" title="Повтор">🔁</button>
+        </div>
+
+        <label style="font-size:.78rem;color:#96a9ce">Громкость
+          <input id="volumeBar" type="range" min="0" max="1" value="0.75" step="0.01" />
+        </label>
+
+        <div id="playlist" class="playlist"></div>
+      </div>
+    </div>
+  </aside>
 
   <main class="shell">
     <header class="brand">
@@ -410,9 +581,7 @@
     1) Положи файл music.mp3 в папку static/ (путь: /workspace/like/static/music.mp3)
     2) Если имя другое, поменяй src ниже.
   -->
-  <audio id="bgMusic" loop preload="none">
-    <source src="{{ url_for('static', filename='music.mp3') }}" type="audio/mpeg">
-  </audio>
+  <audio id="bgMusic" preload="metadata"></audio>
 
   <script>
     const likeTab = document.getElementById('likeTab');
@@ -434,9 +603,33 @@
     const tokenGrid = document.getElementById('tokenGrid');
     const tokenRaw = document.getElementById('tokenRaw');
 
-    const musicBtn = document.getElementById('musicBtn');
+    const player = document.getElementById('player');
+    const collapsePlayer = document.getElementById('collapsePlayer');
     const bgMusic = document.getElementById('bgMusic');
+    const playBtn = document.getElementById('playBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const repeatBtn = document.getElementById('repeatBtn');
+    const seekBar = document.getElementById('seekBar');
+    const volumeBar = document.getElementById('volumeBar');
+    const playlistEl = document.getElementById('playlist');
+    const trackNameEl = document.getElementById('trackName');
+    const trackArtistEl = document.getElementById('trackArtist');
+    const currentTimeEl = document.getElementById('currentTime');
+    const totalTimeEl = document.getElementById('totalTime');
     let isPlaying = false;
+    let isShuffle = false;
+    let isRepeat = false;
+    let currentTrackIndex = 0;
+
+    const playlist = [
+      { title: 'Cyber Pulse', artist: 'M222HP Beats', src: "{{ url_for('static', filename='music.mp3') }}" },
+      { title: 'Acoustic Breeze', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3' },
+      { title: 'Slow Motion', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-slowmotion.mp3' },
+      { title: 'Creative Minds', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-creativeminds.mp3' },
+      { title: 'A New Beginning', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-anewbeginning.mp3' },
+    ];
 
     function setStatus(message, type = '') {
       statusEl.textContent = message;
@@ -555,22 +748,134 @@
       }, { once: true });
     }
 
-    musicBtn.addEventListener('click', async () => {
-      try {
-        if (isPlaying) {
-          bgMusic.pause();
-          isPlaying = false;
-          musicBtn.textContent = '▶';
-          return;
-        }
+    function formatTime(seconds) {
+      if (!Number.isFinite(seconds)) return '00:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
 
+    function renderPlaylist() {
+      playlistEl.innerHTML = '';
+      playlist.forEach((track, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `track-item ${index === currentTrackIndex ? 'active' : ''}`.trim();
+        btn.innerHTML = `${track.title}<small>${track.artist}</small>`;
+        btn.addEventListener('click', () => {
+          loadTrack(index, true);
+        });
+        playlistEl.appendChild(btn);
+      });
+    }
+
+    function loadTrack(index, autoplay = false) {
+      currentTrackIndex = index;
+      const track = playlist[currentTrackIndex];
+      bgMusic.src = track.src;
+      trackNameEl.textContent = track.title;
+      trackArtistEl.textContent = track.artist;
+      seekBar.value = 0;
+      currentTimeEl.textContent = '00:00';
+      totalTimeEl.textContent = '00:00';
+      renderPlaylist();
+      if (autoplay) {
+        playCurrent();
+      }
+    }
+
+    async function playCurrent() {
+      try {
         await bgMusic.play();
         isPlaying = true;
-        musicBtn.textContent = '❚❚';
+        playBtn.textContent = '❚❚';
       } catch (error) {
-        setStatus('Не удалось воспроизвести music.mp3', 'err');
+        setStatus('Не удалось воспроизвести выбранный трек', 'err');
+      }
+    }
+
+    function pauseCurrent() {
+      bgMusic.pause();
+      isPlaying = false;
+      playBtn.textContent = '▶';
+    }
+
+    function nextTrack() {
+      if (isShuffle) {
+        currentTrackIndex = Math.floor(Math.random() * playlist.length);
+      } else {
+        currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
+      }
+      loadTrack(currentTrackIndex, true);
+    }
+
+    function prevTrack() {
+      currentTrackIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
+      loadTrack(currentTrackIndex, true);
+    }
+
+    playBtn.addEventListener('click', () => {
+      if (!bgMusic.src) {
+        loadTrack(currentTrackIndex, true);
+        return;
+      }
+      if (isPlaying) {
+        pauseCurrent();
+      } else {
+        playCurrent();
       }
     });
+
+    nextBtn.addEventListener('click', nextTrack);
+    prevBtn.addEventListener('click', prevTrack);
+
+    shuffleBtn.addEventListener('click', () => {
+      isShuffle = !isShuffle;
+      shuffleBtn.style.borderColor = isShuffle ? '#ff4f4f' : '#2a3448';
+    });
+
+    repeatBtn.addEventListener('click', () => {
+      isRepeat = !isRepeat;
+      repeatBtn.style.borderColor = isRepeat ? '#ff4f4f' : '#2a3448';
+    });
+
+    collapsePlayer.addEventListener('click', () => {
+      player.classList.toggle('collapsed');
+      collapsePlayer.textContent = player.classList.contains('collapsed') ? '+' : '−';
+    });
+
+    volumeBar.addEventListener('input', () => {
+      bgMusic.volume = Number(volumeBar.value);
+    });
+
+    seekBar.addEventListener('input', () => {
+      if (!Number.isFinite(bgMusic.duration)) return;
+      const newTime = (Number(seekBar.value) / 100) * bgMusic.duration;
+      bgMusic.currentTime = newTime;
+    });
+
+    bgMusic.addEventListener('timeupdate', () => {
+      if (!Number.isFinite(bgMusic.duration)) return;
+      const progress = (bgMusic.currentTime / bgMusic.duration) * 100;
+      seekBar.value = progress;
+      currentTimeEl.textContent = formatTime(bgMusic.currentTime);
+      totalTimeEl.textContent = formatTime(bgMusic.duration);
+    });
+
+    bgMusic.addEventListener('ended', () => {
+      if (isRepeat) {
+        loadTrack(currentTrackIndex, true);
+      } else {
+        nextTrack();
+      }
+    });
+
+    bgMusic.addEventListener('loadedmetadata', () => {
+      totalTimeEl.textContent = formatTime(bgMusic.duration);
+    });
+
+    loadTrack(currentTrackIndex, false);
+    bgMusic.volume = Number(volumeBar.value);
   </script>
 </body>
 </html>
