@@ -153,6 +153,75 @@
       background: rgba(6, 10, 18, 0.85);
     }
 
+    .search-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+
+    .search-row input {
+      margin: 0;
+      padding: 10px;
+      border-radius: 10px;
+      background: #0b1220;
+      border: 1px solid #2a3448;
+      color: #dce8ff;
+    }
+
+    .search-btn {
+      border: 1px solid #d10b0b;
+      background: linear-gradient(90deg, #ff2020, #c00505);
+      color: #fff;
+      border-radius: 10px;
+      font-weight: 800;
+      padding: 0 14px;
+      cursor: pointer;
+    }
+
+    .search-results {
+      border: 1px solid #273046;
+      border-radius: 12px;
+      background: rgba(6, 10, 18, 0.85);
+      max-height: 160px;
+      overflow: auto;
+    }
+
+    .search-item {
+      border-bottom: 1px solid #20293f;
+      padding: 9px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .search-item:last-child {
+      border-bottom: 0;
+    }
+
+    .search-item p {
+      margin: 0;
+      font-size: .82rem;
+      color: #d4e1ff;
+    }
+
+    .search-item small {
+      color: #7e95be;
+      font-size: .72rem;
+    }
+
+    .add-track-btn {
+      border: 1px solid #304361;
+      background: #0d1628;
+      color: #dce8ff;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: .75rem;
+      padding: 6px 8px;
+      white-space: nowrap;
+    }
+
     .track-item {
       width: 100%;
       border: 0;
@@ -482,6 +551,14 @@
           <input id="volumeBar" type="range" min="0" max="1" value="0.75" step="0.01" />
         </label>
 
+        <div class="search-row">
+          <input id="musicSearch" type="text" placeholder="Поиск музыки онлайн..." />
+          <button id="searchBtn" class="search-btn" type="button">Найти</button>
+        </div>
+        <div id="searchResults" class="search-results">
+          <div style="padding:10px;color:#7f93b5;font-size:.8rem">Введи название трека или исполнителя.</div>
+        </div>
+
         <div id="playlist" class="playlist"></div>
       </div>
     </div>
@@ -614,6 +691,9 @@
     const seekBar = document.getElementById('seekBar');
     const volumeBar = document.getElementById('volumeBar');
     const playlistEl = document.getElementById('playlist');
+    const musicSearch = document.getElementById('musicSearch');
+    const searchBtn = document.getElementById('searchBtn');
+    const searchResults = document.getElementById('searchResults');
     const trackNameEl = document.getElementById('trackName');
     const trackArtistEl = document.getElementById('trackArtist');
     const currentTimeEl = document.getElementById('currentTime');
@@ -625,10 +705,7 @@
 
     const playlist = [
       { title: 'Cyber Pulse', artist: 'M222HP Beats', src: "{{ url_for('static', filename='music.mp3') }}" },
-      { title: 'Acoustic Breeze', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3' },
-      { title: 'Slow Motion', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-slowmotion.mp3' },
-      { title: 'Creative Minds', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-creativeminds.mp3' },
-      { title: 'A New Beginning', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-anewbeginning.mp3' },
+      { title: 'Acoustic Breeze', artist: 'Benjamin Tissot', src: 'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3' }
     ];
 
     function setStatus(message, type = '') {
@@ -784,6 +861,68 @@
       }
     }
 
+    function addTrackToPlaylist(track, autoplay = false) {
+      const exists = playlist.some((item) => item.src === track.src);
+      if (!exists) {
+        playlist.unshift(track);
+        currentTrackIndex = 0;
+      } else {
+        currentTrackIndex = playlist.findIndex((item) => item.src === track.src);
+      }
+      loadTrack(currentTrackIndex, autoplay);
+      setStatus(`Добавлен трек: ${track.title}`, 'ok');
+    }
+
+    function renderSearchResults(items) {
+      if (!items.length) {
+        searchResults.innerHTML = '<div style="padding:10px;color:#7f93b5;font-size:.8rem">Ничего не найдено.</div>';
+        return;
+      }
+
+      searchResults.innerHTML = '';
+      items.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'search-item';
+        const textWrap = document.createElement('div');
+        textWrap.innerHTML = `<p>${item.title}</p><small>${item.artist}</small>`;
+
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'add-track-btn';
+        addBtn.textContent = 'Добавить ▶';
+        addBtn.addEventListener('click', () => addTrackToPlaylist(item, true));
+
+        row.appendChild(textWrap);
+        row.appendChild(addBtn);
+        searchResults.appendChild(row);
+      });
+    }
+
+    async function searchOnlineMusic() {
+      const query = musicSearch.value.trim();
+      if (!query) {
+        setStatus('Введи запрос для поиска музыки', 'err');
+        return;
+      }
+
+      searchResults.innerHTML = '<div style="padding:10px;color:#7f93b5;font-size:.8rem">Ищу треки...</div>';
+
+      try {
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=30`);
+        const data = await res.json();
+        const mapped = (data.results || [])
+          .filter((x) => x.previewUrl)
+          .map((x) => ({
+            title: x.trackName || 'Unknown Track',
+            artist: x.artistName || 'Unknown Artist',
+            src: x.previewUrl
+          }));
+        renderSearchResults(mapped);
+      } catch (error) {
+        searchResults.innerHTML = '<div style="padding:10px;color:#ff7373;font-size:.8rem">Ошибка поиска. Попробуй еще раз.</div>';
+      }
+    }
+
     async function playCurrent() {
       try {
         await bgMusic.play();
@@ -828,6 +967,13 @@
 
     nextBtn.addEventListener('click', nextTrack);
     prevBtn.addEventListener('click', prevTrack);
+    searchBtn.addEventListener('click', searchOnlineMusic);
+    musicSearch.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        searchOnlineMusic();
+      }
+    });
 
     shuffleBtn.addEventListener('click', () => {
       isShuffle = !isShuffle;
